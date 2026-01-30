@@ -1,0 +1,5 @@
+class Product(BaseModel):
+    id: int
+    name: str
+    quantity: int
+    stock_id: int
