@@ -1,7 +1,11 @@
 from fastapi import FastAPI
 
-app = FastAPI(title="Inventory Management System API", version="0.1.0")
+from routers.inventory import router as inventory_router
+from routers.stock import router as stock_router
+from routers.pos_session import router as pos_session_router
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+app = FastAPI(title="Inventory Management System")
+
+app.include_router(inventory_router)
+app.include_router(stock_router)
+app.include_router(pos_session_router)
