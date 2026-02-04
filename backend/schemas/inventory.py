@@ -1,3 +1,5 @@
+from pydantic import BaseModel
+
 class Inventory(BaseModel):
     id: int
     name: str
