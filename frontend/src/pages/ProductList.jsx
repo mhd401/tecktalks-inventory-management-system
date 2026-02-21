@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { inventoryApi } from "../api/inventoryApi";
 import { stockApi } from "../api/stockApi";
 import { productApi } from "../api/productApi";
+import DarkPicker from "../components/DarkPicker";
+import EditModal from "../components/EditModal";
 
 export default function ProductList() {
   const [inventories, setInventories] = useState([]);
@@ -20,6 +22,17 @@ export default function ProductList() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // Reusable edit modal state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    sku: "",
+    price: "",
+    quantity: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const loadInventories = async () => {
     const data = await inventoryApi.list();
     const safe = Array.isArray(data) ? data : [];
@@ -33,11 +46,13 @@ export default function ProductList() {
       setSelectedStockId("");
       return [];
     }
-    const data = await stockApi.listByInventory(inventoryId);
+    const data = await stockApi.listByInventory(Number(inventoryId));
     const safe = Array.isArray(data) ? data : [];
     setStocks(safe);
+
     if (safe.length > 0) setSelectedStockId(String(safe[0].id));
     else setSelectedStockId("");
+
     return safe;
   };
 
@@ -46,7 +61,7 @@ export default function ProductList() {
       setProducts([]);
       return;
     }
-    const data = await productApi.listByStock(stockId);
+    const data = await productApi.listByStock(Number(stockId));
     setProducts(Array.isArray(data) ? data : []);
   };
 
@@ -58,15 +73,22 @@ export default function ProductList() {
         const invs = await loadInventories();
         if (invs.length > 0) {
           setSelectedInventoryId(String(invs[0].id));
-          const st = await stockApi.listByInventory(invs[0].id);
+
+          const st = await stockApi.listByInventory(Number(invs[0].id));
           const safeStocks = Array.isArray(st) ? st : [];
           setStocks(safeStocks);
+
           if (safeStocks.length > 0) {
             setSelectedStockId(String(safeStocks[0].id));
             await loadProducts(safeStocks[0].id);
           } else {
             setProducts([]);
           }
+        } else {
+          setStocks([]);
+          setProducts([]);
+          setSelectedInventoryId("");
+          setSelectedStockId("");
         }
       } catch (err) {
         setError(err.message || "Failed to load product page");
@@ -78,11 +100,12 @@ export default function ProductList() {
 
   useEffect(() => {
     if (!selectedInventoryId) return;
+
     (async () => {
       setLoading(true);
       setError("");
       try {
-        const st = await stockApi.listByInventory(selectedInventoryId);
+        const st = await stockApi.listByInventory(Number(selectedInventoryId));
         const safeStocks = Array.isArray(st) ? st : [];
         setStocks(safeStocks);
 
@@ -104,6 +127,7 @@ export default function ProductList() {
 
   useEffect(() => {
     if (!selectedStockId) return;
+
     (async () => {
       setLoading(true);
       setError("");
@@ -119,12 +143,25 @@ export default function ProductList() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+
     if (!selectedStockId) {
       setError("Please select a stock");
       return;
     }
     if (!name.trim()) {
       setError("Product name is required");
+      return;
+    }
+
+    const priceNum = Number(price || 0);
+    const qtyNum = Number(quantity || 0);
+
+    if (Number.isNaN(priceNum) || priceNum < 0) {
+      setError("Price must be a valid non-negative number");
+      return;
+    }
+    if (!Number.isInteger(qtyNum) || qtyNum < 0) {
+      setError("Quantity must be a valid non-negative integer");
       return;
     }
 
@@ -135,8 +172,8 @@ export default function ProductList() {
         stock_id: Number(selectedStockId),
         name: name.trim(),
         sku: sku.trim() || null,
-        price: Number(price || 0),
-        quantity: Number(quantity || 0),
+        price: priceNum,
+        quantity: qtyNum,
       });
 
       setName("");
@@ -149,6 +186,75 @@ export default function ProductList() {
       setError(err.message || "Failed to create product");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Open modal instead of window.prompt
+  const handleEdit = (p) => {
+    setEditingProduct(p);
+    setEditForm({
+      name: p.name || "",
+      sku: p.sku || "",
+      price: String(p.price ?? 0),
+      quantity: String(p.quantity ?? 0),
+    });
+    setIsEditOpen(true);
+    setError("");
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    const trimmedName = (editForm.name || "").trim();
+    const priceNum = Number(editForm.price);
+    const qtyNum = Number(editForm.quantity);
+
+    if (!trimmedName) {
+      setError("Product name is required");
+      return;
+    }
+    if (Number.isNaN(priceNum) || priceNum < 0) {
+      setError("Price must be a valid non-negative number");
+      return;
+    }
+    if (!Number.isInteger(qtyNum) || qtyNum < 0) {
+      setError("Quantity must be a valid non-negative integer");
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      setError("");
+
+      await productApi.update(editingProduct.id, {
+        name: trimmedName,
+        sku: (editForm.sku || "").trim() || null,
+        price: priceNum,
+        quantity: qtyNum,
+      });
+
+      setIsEditOpen(false);
+      setEditingProduct(null);
+
+      await loadProducts(selectedStockId);
+    } catch (err) {
+      setError(err.message || "Failed to update product");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDelete = async (p) => {
+    const ok = window.confirm(`Delete product "${p.name}"?`);
+    if (!ok) return;
+
+    try {
+      setError("");
+      await productApi.remove(p.id);
+      await loadProducts(selectedStockId);
+    } catch (err) {
+      setError(err.message || "Failed to delete product");
     }
   };
 
@@ -182,31 +288,26 @@ export default function ProductList() {
           </div>
 
           <div style={{ display: "grid", gap: 10, marginBottom: 12 }}>
-            <select
-              className="input"
+            <DarkPicker
               value={selectedInventoryId}
-              onChange={(e) => setSelectedInventoryId(e.target.value)}
-            >
-              <option value="">Select inventory</option>
-              {inventories.map((inv) => (
-                <option key={inv.id} value={inv.id}>
-                  #{inv.id} - {inv.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedInventoryId(String(val))}
+              placeholder="Select inventory"
+              options={inventories.map((inv) => ({
+                value: String(inv.id),
+                label: `#${inv.id} - ${inv.name}`,
+              }))}
+            />
 
-            <select
-              className="input"
+            <DarkPicker
               value={selectedStockId}
-              onChange={(e) => setSelectedStockId(e.target.value)}
-            >
-              <option value="">Select stock</option>
-              {stocks.map((s) => (
-                <option key={s.id} value={s.id}>
-                  #{s.id} - {s.name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedStockId(String(val))}
+              placeholder="Select stock"
+              options={stocks.map((s) => ({
+                value: String(s.id),
+                label: `#${s.id} - ${s.name}`,
+              }))}
+              disabled={!selectedInventoryId}
+            />
           </div>
 
           {error && <p style={{ color: "#ff8b8b", fontSize: 12 }}>{error}</p>}
@@ -219,13 +320,18 @@ export default function ProductList() {
                 <th style={{ width: 120 }}>SKU</th>
                 <th style={{ width: 110 }}>Price</th>
                 <th style={{ width: 120 }}>Qty</th>
+                <th style={{ width: 220 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5}>Loading...</td></tr>
+                <tr>
+                  <td colSpan={6}>Loading...</td>
+                </tr>
               ) : products.length === 0 ? (
-                <tr><td colSpan={5}>No products found.</td></tr>
+                <tr>
+                  <td colSpan={6}>No products found.</td>
+                </tr>
               ) : (
                 products.map((p) => (
                   <tr key={p.id}>
@@ -234,6 +340,26 @@ export default function ProductList() {
                     <td>{p.sku || "-"}</td>
                     <td>${Number(p.price).toFixed(2)}</td>
                     <td>{p.quantity}</td>
+                    <td>
+                      <div className="btnRow">
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => handleEdit(p)}
+                          disabled={loading}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btnDanger"
+                          onClick={() => handleDelete(p)}
+                          disabled={loading}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -249,10 +375,33 @@ export default function ProductList() {
 
           <form onSubmit={handleCreate}>
             <div style={{ display: "grid", gap: 10 }}>
-              <input className="input" placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} />
-              <input className="input" placeholder="SKU (optional)" value={sku} onChange={(e) => setSku(e.target.value)} />
-              <input className="input" type="number" step="0.01" placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} />
-              <input className="input" type="number" placeholder="Quantity" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <input
+                className="input"
+                placeholder="Product name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <input
+                className="input"
+                placeholder="SKU (optional)"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+              />
+              <input
+                className="input"
+                type="number"
+                step="0.01"
+                placeholder="Price"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+              />
+              <input
+                className="input"
+                type="number"
+                placeholder="Quantity"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+              />
 
               <button className="btn btnPrimary" type="submit" disabled={submitting}>
                 {submitting ? "Creating..." : "Create Product"}
@@ -261,6 +410,27 @@ export default function ProductList() {
           </form>
         </aside>
       </div>
+
+      {/* Reusable Edit Modal */}
+      <EditModal
+        open={isEditOpen}
+        title="Edit Product"
+        form={editForm}
+        setForm={setEditForm}
+        saving={savingEdit}
+        onClose={() => {
+          if (savingEdit) return;
+          setIsEditOpen(false);
+          setEditingProduct(null);
+        }}
+        onSave={handleSaveEdit}
+        fields={[
+          { name: "name", label: "Product name", required: true },
+          { name: "sku", label: "SKU (optional)" },
+          { name: "price", label: "Price" },
+          { name: "quantity", label: "Quantity" },
+        ]}
+      />
     </>
   );
 }

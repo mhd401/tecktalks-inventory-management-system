@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { inventoryApi } from "../api/inventoryApi";
+import EditModal from "../components/EditModal";
 
 export default function InventoryList() {
   const [inventories, setInventories] = useState([]);
@@ -7,6 +8,12 @@ export default function InventoryList() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Edit modal state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingInventory, setEditingInventory] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadInventories = async () => {
     setLoading(true);
@@ -31,6 +38,7 @@ export default function InventoryList() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const trimmed = name.trim();
+
     if (!trimmed) {
       setError("Inventory name cannot be empty");
       return;
@@ -49,11 +57,57 @@ export default function InventoryList() {
     }
   };
 
+  // Open Edit Modal
+  const handleEdit = (inv) => {
+    setEditingInventory(inv);
+    setEditForm({ name: inv.name || "" });
+    setIsEditOpen(true);
+    setError("");
+  };
+
+  // Save Edit Modal
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editingInventory) return;
+
+    const trimmed = (editForm.name || "").trim();
+    if (!trimmed) {
+      setError("Inventory name cannot be empty");
+      return;
+    }
+
+    setSavingEdit(true);
+    setError("");
+    try {
+      await inventoryApi.update(editingInventory.id, { name: trimmed });
+      setIsEditOpen(false);
+      setEditingInventory(null);
+      await loadInventories();
+    } catch (err) {
+      setError(err.message || "Failed to update inventory");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDelete = async (inv) => {
+    const ok = window.confirm(`Delete inventory "${inv.name}"?`);
+    if (!ok) return;
+
+    try {
+      setError("");
+      await inventoryApi.remove(inv.id);
+      await loadInventories();
+    } catch (err) {
+      setError(err.message || "Failed to delete inventory");
+    }
+  };
+
   return (
     <>
       <div className="kpiRow">
         <div className="kpi">
-          <strong>{total}</strong>
+          <strong>{loading ? "..." : total}</strong>
           <span>Total inventories</span>
         </div>
         <div className="kpi">
@@ -85,16 +139,17 @@ export default function InventoryList() {
                 <th style={{ width: 120 }}>ID</th>
                 <th>Name</th>
                 <th style={{ width: 160 }}>Status</th>
+                <th style={{ width: 220 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={3}>Loading...</td>
+                  <td colSpan={4}>Loading...</td>
                 </tr>
               ) : inventories.length === 0 ? (
                 <tr>
-                  <td colSpan={3}>No inventories yet.</td>
+                  <td colSpan={4}>No inventories yet.</td>
                 </tr>
               ) : (
                 inventories.map((inv) => (
@@ -106,6 +161,26 @@ export default function InventoryList() {
                         <span className="dot dotGreen" />
                         Active
                       </span>
+                    </td>
+                    <td>
+                      <div className="btnRow">
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => handleEdit(inv)}
+                          disabled={loading}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btnDanger"
+                          onClick={() => handleDelete(inv)}
+                          disabled={loading}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -140,6 +215,21 @@ export default function InventoryList() {
           </form>
         </aside>
       </div>
+
+      <EditModal
+        open={isEditOpen}
+        title="Edit Inventory"
+        form={editForm}
+        setForm={setEditForm}
+        saving={savingEdit}
+        onClose={() => {
+          if (savingEdit) return;
+          setIsEditOpen(false);
+          setEditingInventory(null);
+        }}
+        onSave={handleSaveEdit}
+        fields={[{ name: "name", label: "Inventory name", required: true }]}
+      />
     </>
   );
 }

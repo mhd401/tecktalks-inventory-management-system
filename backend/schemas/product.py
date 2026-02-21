@@ -1,12 +1,12 @@
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 class ProductCreate(BaseModel):
     stock_id: int
     name: str
     sku: str | None = None
-    price: float = 0.0
-    quantity: int = 0
+    price: float = Field(default=0.0, ge=0)   
+    quantity: int = Field(default=0, ge=0)     
 
 class ProductRead(BaseModel):
     id: int
@@ -22,5 +22,5 @@ class ProductRead(BaseModel):
 class ProductUpdate(BaseModel):
     name: str
     sku: str | None = None
-    price: float
-    quantity: int
+    price: float = Field(ge=0)                 
+    quantity: int = Field(ge=0)              

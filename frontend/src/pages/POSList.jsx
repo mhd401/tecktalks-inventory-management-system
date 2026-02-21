@@ -3,6 +3,8 @@ import { inventoryApi } from "../api/inventoryApi";
 import { stockApi } from "../api/stockApi";
 import { posApi } from "../api/posApi";
 import { productApi } from "../api/productApi";
+import DarkPicker from "../components/DarkPicker";
+import EditModal from "../components/EditModal";
 
 export default function POSList() {
   const [inventories, setInventories] = useState([]);
@@ -19,6 +21,15 @@ export default function POSList() {
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState({});
 
+  // Reusable edit modal state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingPos, setEditingPos] = useState(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    stock_id: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const loadInventoryAndStocks = async () => {
     const invs = await inventoryApi.list();
     const safeInvs = Array.isArray(invs) ? invs : [];
@@ -28,13 +39,19 @@ export default function POSList() {
       const invId = String(safeInvs[0].id);
       setSelectedInventoryId(invId);
 
-      const st = await stockApi.listByInventory(invId);
+      const st = await stockApi.listByInventory(Number(invId));
       const safeStocks = Array.isArray(st) ? st : [];
       setStocks(safeStocks);
 
       if (safeStocks.length > 0) {
         setSelectedStockId(String(safeStocks[0].id));
+      } else {
+        setSelectedStockId("");
       }
+    } else {
+      setStocks([]);
+      setSelectedInventoryId("");
+      setSelectedStockId("");
     }
   };
 
@@ -88,9 +105,10 @@ export default function POSList() {
 
   useEffect(() => {
     if (!selectedInventoryId) return;
+
     (async () => {
       try {
-        const st = await stockApi.listByInventory(selectedInventoryId);
+        const st = await stockApi.listByInventory(Number(selectedInventoryId));
         const safeStocks = Array.isArray(st) ? st : [];
         setStocks(safeStocks);
         setSelectedStockId(safeStocks.length > 0 ? String(safeStocks[0].id) : "");
@@ -103,6 +121,10 @@ export default function POSList() {
   const getStatus = (posId) => {
     const sessions = sessionsByPos[posId] || [];
     return sessions.length > 0 ? sessions[0].status : "CLOSED";
+  };
+
+  const setBusy = (posId, value) => {
+    setActionLoading((prev) => ({ ...prev, [posId]: value }));
   };
 
   const handleCreatePOS = async (e) => {
@@ -127,30 +149,103 @@ export default function POSList() {
   };
 
   const handleOpenSession = async (posId) => {
-    setActionLoading((prev) => ({ ...prev, [posId]: true }));
+    setBusy(posId, true);
     setError("");
     try {
       await posApi.openSession(posId);
       const sessions = await posApi.listSessions(posId);
-      setSessionsByPos((prev) => ({ ...prev, [posId]: sessions || [] }));
+      setSessionsByPos((prev) => ({
+        ...prev,
+        [posId]: Array.isArray(sessions) ? sessions : [],
+      }));
     } catch (err) {
       setError(err.message || "Failed to open session");
     } finally {
-      setActionLoading((prev) => ({ ...prev, [posId]: false }));
+      setBusy(posId, false);
     }
   };
 
   const handleCloseSession = async (posId) => {
-    setActionLoading((prev) => ({ ...prev, [posId]: true }));
+    setBusy(posId, true);
     setError("");
     try {
       await posApi.closeSession(posId);
       const sessions = await posApi.listSessions(posId);
-      setSessionsByPos((prev) => ({ ...prev, [posId]: sessions || [] }));
+      setSessionsByPos((prev) => ({
+        ...prev,
+        [posId]: Array.isArray(sessions) ? sessions : [],
+      }));
     } catch (err) {
       setError(err.message || "Failed to close session");
     } finally {
-      setActionLoading((prev) => ({ ...prev, [posId]: false }));
+      setBusy(posId, false);
+    }
+  };
+
+  // Open edit modal
+  const handleEditPOS = (pos) => {
+    setEditingPos(pos);
+    setEditForm({
+      name: pos.name || "",
+      stock_id: String(pos.stock_id ?? ""),
+    });
+    setIsEditOpen(true);
+    setError("");
+  };
+
+  const handleSaveEditPOS = async (e) => {
+    e.preventDefault();
+    if (!editingPos) return;
+
+    const trimmedName = (editForm.name || "").trim();
+    const stockIdNum = Number(editForm.stock_id);
+
+    if (!trimmedName) {
+      setError("POS name is required");
+      return;
+    }
+
+    if (!Number.isInteger(stockIdNum) || stockIdNum <= 0) {
+      setError("Stock ID must be a valid positive integer");
+      return;
+    }
+
+    setBusy(editingPos.id, true);
+    setSavingEdit(true);
+    setError("");
+
+    try {
+      await posApi.update(editingPos.id, {
+        name: trimmedName,
+        stock_id: stockIdNum,
+      });
+
+      setIsEditOpen(false);
+      setEditingPos(null);
+
+      // stock link may have changed -> reload cards/products
+      await loadPOSData();
+    } catch (err) {
+      setError(err.message || "Failed to update POS");
+    } finally {
+      setBusy(editingPos.id, false);
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeletePOS = async (pos) => {
+    const ok = window.confirm(`Delete POS "${pos.name}"?`);
+    if (!ok) return;
+
+    setBusy(pos.id, true);
+    setError("");
+    try {
+      await posApi.remove(pos.id);
+      await loadPOSData();
+    } catch (err) {
+      setError(err.message || "Failed to delete POS");
+    } finally {
+      setBusy(pos.id, false);
     }
   };
 
@@ -194,31 +289,26 @@ export default function POSList() {
 
           <form onSubmit={handleCreatePOS}>
             <div style={{ display: "grid", gap: 10 }}>
-              <select
-                className="input"
+              <DarkPicker
                 value={selectedInventoryId}
-                onChange={(e) => setSelectedInventoryId(e.target.value)}
-              >
-                <option value="">Select inventory</option>
-                {inventories.map((inv) => (
-                  <option key={inv.id} value={inv.id}>
-                    #{inv.id} - {inv.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedInventoryId(String(val))}
+                placeholder="Select inventory"
+                options={inventories.map((inv) => ({
+                  value: String(inv.id),
+                  label: `#${inv.id} - ${inv.name}`,
+                }))}
+              />
 
-              <select
-                className="input"
+              <DarkPicker
                 value={selectedStockId}
-                onChange={(e) => setSelectedStockId(e.target.value)}
-              >
-                <option value="">Select stock</option>
-                {stocks.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    #{s.id} - {s.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setSelectedStockId(String(val))}
+                placeholder="Select stock"
+                options={stocks.map((s) => ({
+                  value: String(s.id),
+                  label: `#${s.id} - ${s.name}`,
+                }))}
+                disabled={!selectedInventoryId}
+              />
 
               <input
                 className="input"
@@ -268,7 +358,11 @@ export default function POSList() {
               const isBusy = !!actionLoading[pos.id];
 
               return (
-                <div key={pos.id} className="card" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <div
+                  key={pos.id}
+                  className="card"
+                  style={{ background: "rgba(255,255,255,0.04)" }}
+                >
                   <div className="cardHeader">
                     <h2>{pos.name}</h2>
                     <span>Stock ID: {pos.stock_id}</span>
@@ -286,7 +380,8 @@ export default function POSList() {
                   >
                     <span className="badge">
                       <span className={isOpen ? "dot dotGreen" : "dot dotRed"} />
-                      Session: <b style={{ color: "rgba(255,255,255,0.92)" }}>{status}</b>
+                      Session:{" "}
+                      <b style={{ color: "rgba(255,255,255,0.92)" }}>{status}</b>
                     </span>
 
                     <div className="btnRow">
@@ -309,6 +404,33 @@ export default function POSList() {
                     </div>
                   </div>
 
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <div className="btnRow">
+                      <button
+                        className="btn"
+                        type="button"
+                        onClick={() => handleEditPOS(pos)}
+                        disabled={isBusy}
+                      >
+                        Edit POS
+                      </button>
+                      <button
+                        className="btn btnDanger"
+                        type="button"
+                        onClick={() => handleDeletePOS(pos)}
+                        disabled={isBusy}
+                      >
+                        Delete POS
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                     <table className="table">
                       <thead>
@@ -321,7 +443,9 @@ export default function POSList() {
                       </thead>
                       <tbody>
                         {products.length === 0 ? (
-                          <tr><td colSpan={4}>No products for stock #{pos.stock_id}</td></tr>
+                          <tr>
+                            <td colSpan={4}>No products for stock #{pos.stock_id}</td>
+                          </tr>
                         ) : (
                           products.map((p) => (
                             <tr key={p.id}>
@@ -341,6 +465,24 @@ export default function POSList() {
           </div>
         )}
       </section>
+
+      <EditModal
+        open={isEditOpen}
+        title="Edit POS"
+        form={editForm}
+        setForm={setEditForm}
+        saving={savingEdit}
+        onClose={() => {
+          if (savingEdit) return;
+          setIsEditOpen(false);
+          setEditingPos(null);
+        }}
+        onSave={handleSaveEditPOS}
+        fields={[
+          { name: "name", label: "POS name", required: true },
+          { name: "stock_id", label: "Stock ID", required: true },
+        ]}
+      />
     </div>
   );
 }

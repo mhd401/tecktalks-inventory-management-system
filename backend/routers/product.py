@@ -1,13 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models.stock import Stock
 from models.product import Product
-from schemas.product import ProductCreate, ProductRead
-
 from schemas.product import ProductCreate, ProductRead, ProductUpdate
-from fastapi import Response
 
 router = APIRouter(tags=["Products"])
 
@@ -21,15 +18,27 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
     if not name:
         raise HTTPException(status_code=400, detail="Product name cannot be empty")
 
-    if payload.sku:
-        existing_sku = db.query(Product).filter(Product.sku == payload.sku.strip()).first()
+    if payload.price < 0:
+        raise HTTPException(status_code=400, detail="Price cannot be negative")
+    if payload.quantity < 0:
+        raise HTTPException(status_code=400, detail="Quantity cannot be negative")
+
+    sku = payload.sku.strip() if payload.sku and payload.sku.strip() else None
+
+    
+    if sku:
+        existing_sku = (
+            db.query(Product)
+            .filter(Product.stock_id == payload.stock_id, Product.sku == sku)
+            .first()
+        )
         if existing_sku:
-            raise HTTPException(status_code=400, detail="SKU already exists")
+            raise HTTPException(status_code=400, detail="SKU already exists in this stock")
 
     product = Product(
         stock_id=payload.stock_id,
         name=name,
-        sku=payload.sku.strip() if payload.sku else None,
+        sku=sku,
         price=payload.price,
         quantity=payload.quantity,
     )
@@ -57,15 +66,28 @@ def update_product(product_id: int, payload: ProductUpdate, db: Session = Depend
     if not name:
         raise HTTPException(status_code=400, detail="Product name cannot be empty")
 
-    if payload.sku:
-        dup = db.query(Product).filter(Product.sku == payload.sku.strip(), Product.id != product_id).first()
+    if payload.price < 0:
+        raise HTTPException(status_code=400, detail="Price cannot be negative")
+    if payload.quantity < 0:
+        raise HTTPException(status_code=400, detail="Quantity cannot be negative")
+
+    sku = payload.sku.strip() if payload.sku and payload.sku.strip() else None
+
+    if sku:
+        dup = (
+            db.query(Product)
+            .filter(
+                Product.stock_id == product.stock_id,   
+                Product.sku == sku,
+                Product.id != product_id
+            )
+            .first()
+        )
         if dup:
-            raise HTTPException(status_code=400, detail="SKU already exists")
-        product.sku = payload.sku.strip()
-    else:
-        product.sku = None
+            raise HTTPException(status_code=400, detail="SKU already exists in this stock")
 
     product.name = name
+    product.sku = sku
     product.price = payload.price
     product.quantity = payload.quantity
 

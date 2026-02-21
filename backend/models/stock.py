@@ -9,6 +9,7 @@ class Stock(Base):
     id = Column(Integer, primary_key=True, index=True)
     inventory_id = Column(Integer, ForeignKey("inventories.id", ondelete="CASCADE", onupdate="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
+    category = Column(String(100), nullable=True) 
     location = Column(String(255), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 

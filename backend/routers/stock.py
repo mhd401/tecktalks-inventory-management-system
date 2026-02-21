@@ -1,13 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models.inventory import Inventory
 from models.stock import Stock
-from schemas.stock import StockCreate, StockRead
-
 from schemas.stock import StockCreate, StockRead, StockUpdate
-from fastapi import Response
 
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
@@ -21,10 +18,14 @@ def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
     if not name:
         raise HTTPException(status_code=400, detail="Stock name cannot be empty")
 
+    category = payload.category.strip() if payload.category and payload.category.strip() else None
+    location = payload.location.strip() if payload.location and payload.location.strip() else None
+
     stock = Stock(
         inventory_id=payload.inventory_id,
         name=name,
-        location=(payload.location.strip() if payload.location else None),
+        category=category,  
+        location=location,
     )
     db.add(stock)
     db.commit()
@@ -40,7 +41,6 @@ def list_stocks_by_inventory(inventory_id: int, db: Session = Depends(get_db)):
         .all()
     )
 
-
 @router.put("/{stock_id}", response_model=StockRead)
 def update_stock(stock_id: int, payload: StockUpdate, db: Session = Depends(get_db)):
     stock = db.query(Stock).filter(Stock.id == stock_id).first()
@@ -52,7 +52,8 @@ def update_stock(stock_id: int, payload: StockUpdate, db: Session = Depends(get_
         raise HTTPException(status_code=400, detail="Stock name cannot be empty")
 
     stock.name = name
-    stock.location = payload.location.strip() if payload.location else None
+    stock.category = payload.category.strip() if payload.category and payload.category.strip() else None  # ✅ NEW
+    stock.location = payload.location.strip() if payload.location and payload.location.strip() else None
     db.commit()
     db.refresh(stock)
     return stock
