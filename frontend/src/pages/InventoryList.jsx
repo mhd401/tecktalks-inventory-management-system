@@ -1,24 +1,53 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { inventoryApi } from "../api/inventoryApi";
 
 export default function InventoryList() {
-  const base = [
-    { id: 1, name: "Main Inventory" },
-    { id: 2, name: "Secondary Inventory" },
-  ];
-
-  const [inventories, setInventories] = useState(base);
+  const [inventories, setInventories] = useState([]);
   const [name, setName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const total = inventories.length;
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const newInventory = { id: inventories.length + 1, name };
-    setInventories([...inventories, newInventory]);
-    setName("");
+  const loadInventories = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await inventoryApi.list();
+      setInventories(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setError(err.message || "Failed to load inventories");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  useEffect(() => {
+    loadInventories();
+  }, []);
+
+  const total = inventories.length;
   const newest = useMemo(() => inventories[inventories.length - 1], [inventories]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Inventory name cannot be empty");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    try {
+      await inventoryApi.create({ name: trimmed });
+      setName("");
+      await loadInventories();
+    } catch (err) {
+      setError(err.message || "Failed to create inventory");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <>
@@ -32,8 +61,8 @@ export default function InventoryList() {
           <span>Last created ID</span>
         </div>
         <div className="kpi">
-          <strong>Ready</strong>
-          <span>Backend integration later</span>
+          <strong>{loading ? "..." : "Live"}</strong>
+          <span>Backend connected</span>
         </div>
       </div>
 
@@ -41,8 +70,14 @@ export default function InventoryList() {
         <section className="card">
           <div className="cardHeader">
             <h2>Inventory List</h2>
-            <span>Mock JSON</span>
+            <span>MySQL / FastAPI</span>
           </div>
+
+          {error && (
+            <p style={{ marginBottom: 10, color: "#ff8b8b", fontSize: 12 }}>
+              {error}
+            </p>
+          )}
 
           <table className="table">
             <thead>
@@ -53,18 +88,28 @@ export default function InventoryList() {
               </tr>
             </thead>
             <tbody>
-              {inventories.map((inv) => (
-                <tr key={inv.id}>
-                  <td>#{inv.id}</td>
-                  <td>{inv.name}</td>
-                  <td>
-                    <span className="badge">
-                      <span className="dot dotGreen" />
-                      Active (mock)
-                    </span>
-                  </td>
+              {loading ? (
+                <tr>
+                  <td colSpan={3}>Loading...</td>
                 </tr>
-              ))}
+              ) : inventories.length === 0 ? (
+                <tr>
+                  <td colSpan={3}>No inventories yet.</td>
+                </tr>
+              ) : (
+                inventories.map((inv) => (
+                  <tr key={inv.id}>
+                    <td>#{inv.id}</td>
+                    <td>{inv.name}</td>
+                    <td>
+                      <span className="badge">
+                        <span className="dot dotGreen" />
+                        Active
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </section>
@@ -72,7 +117,7 @@ export default function InventoryList() {
         <aside className="card">
           <div className="cardHeader">
             <h2>Create Inventory</h2>
-            <span>Local state</span>
+            <span>FastAPI POST</span>
           </div>
 
           <form onSubmit={handleSubmit}>
@@ -84,12 +129,12 @@ export default function InventoryList() {
                 onChange={(e) => setName(e.target.value)}
               />
 
-              <button className="btn btnPrimary" type="submit">
-                Create
+              <button className="btn btnPrimary" type="submit" disabled={submitting}>
+                {submitting ? "Creating..." : "Create"}
               </button>
 
               <p style={{ margin: 0, color: "rgba(255,255,255,0.65)", fontSize: 12 }}>
-                No validation • No API • No persistence
+                Data is now saved in MySQL
               </p>
             </div>
           </form>
