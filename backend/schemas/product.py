@@ -18,3 +18,9 @@ class ProductRead(BaseModel):
     created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class ProductUpdate(BaseModel):
+    name: str
+    sku: str | None = None
+    price: float
+    quantity: int

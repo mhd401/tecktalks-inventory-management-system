@@ -6,6 +6,9 @@ from models.inventory import Inventory
 from models.stock import Stock
 from schemas.stock import StockCreate, StockRead
 
+from schemas.stock import StockCreate, StockRead, StockUpdate
+from fastapi import Response
+
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
 @router.post("/", response_model=StockRead, status_code=status.HTTP_201_CREATED)
@@ -36,3 +39,30 @@ def list_stocks_by_inventory(inventory_id: int, db: Session = Depends(get_db)):
         .order_by(Stock.id.asc())
         .all()
     )
+
+
+@router.put("/{stock_id}", response_model=StockRead)
+def update_stock(stock_id: int, payload: StockUpdate, db: Session = Depends(get_db)):
+    stock = db.query(Stock).filter(Stock.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Stock name cannot be empty")
+
+    stock.name = name
+    stock.location = payload.location.strip() if payload.location else None
+    db.commit()
+    db.refresh(stock)
+    return stock
+
+@router.delete("/{stock_id}", status_code=204)
+def delete_stock(stock_id: int, db: Session = Depends(get_db)):
+    stock = db.query(Stock).filter(Stock.id == stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+
+    db.delete(stock)
+    db.commit()
+    return Response(status_code=204)

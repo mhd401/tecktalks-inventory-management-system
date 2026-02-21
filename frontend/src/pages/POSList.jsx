@@ -1,64 +1,129 @@
 import { useEffect, useMemo, useState } from "react";
+import { inventoryApi } from "../api/inventoryApi";
+import { stockApi } from "../api/stockApi";
 import { posApi } from "../api/posApi";
 import { productApi } from "../api/productApi";
 
 export default function POSList() {
+  const [inventories, setInventories] = useState([]);
+  const [stocks, setStocks] = useState([]);
+  const [selectedInventoryId, setSelectedInventoryId] = useState("");
+  const [selectedStockId, setSelectedStockId] = useState("");
+  const [posName, setPosName] = useState("");
+
   const [posList, setPosList] = useState([]);
   const [sessionsByPos, setSessionsByPos] = useState({});
   const [productsByPos, setProductsByPos] = useState({});
   const [loading, setLoading] = useState(true);
+  const [submittingPOS, setSubmittingPOS] = useState(false);
   const [error, setError] = useState("");
-  const [actionLoading, setActionLoading] = useState({}); // { [posId]: true/false }
+  const [actionLoading, setActionLoading] = useState({});
+
+  const loadInventoryAndStocks = async () => {
+    const invs = await inventoryApi.list();
+    const safeInvs = Array.isArray(invs) ? invs : [];
+    setInventories(safeInvs);
+
+    if (safeInvs.length > 0) {
+      const invId = String(safeInvs[0].id);
+      setSelectedInventoryId(invId);
+
+      const st = await stockApi.listByInventory(invId);
+      const safeStocks = Array.isArray(st) ? st : [];
+      setStocks(safeStocks);
+
+      if (safeStocks.length > 0) {
+        setSelectedStockId(String(safeStocks[0].id));
+      }
+    }
+  };
 
   const loadPOSData = async () => {
+    const posUnits = await posApi.list();
+    const safePOS = Array.isArray(posUnits) ? posUnits : [];
+    setPosList(safePOS);
+
+    const results = await Promise.all(
+      safePOS.map(async (pos) => {
+        const [sessions, products] = await Promise.all([
+          posApi.listSessions(pos.id).catch(() => []),
+          productApi.listByStock(pos.stock_id).catch(() => []),
+        ]);
+
+        return {
+          posId: pos.id,
+          sessions: Array.isArray(sessions) ? sessions : [],
+          products: Array.isArray(products) ? products : [],
+        };
+      })
+    );
+
+    const nextSessionsByPos = {};
+    const nextProductsByPos = {};
+    results.forEach((r) => {
+      nextSessionsByPos[r.posId] = r.sessions;
+      nextProductsByPos[r.posId] = r.products;
+    });
+
+    setSessionsByPos(nextSessionsByPos);
+    setProductsByPos(nextProductsByPos);
+  };
+
+  const fullReload = async () => {
     setLoading(true);
     setError("");
-
     try {
-      const posUnits = await posApi.list();
-      const safePOS = Array.isArray(posUnits) ? posUnits : [];
-      setPosList(safePOS);
-
-      // Load sessions + products for each POS
-      const results = await Promise.all(
-        safePOS.map(async (pos) => {
-          const [sessions, products] = await Promise.all([
-            posApi.listSessions(pos.id).catch(() => []),
-            productApi.listByStock(pos.stock_id).catch(() => []),
-          ]);
-
-          return {
-            posId: pos.id,
-            sessions: Array.isArray(sessions) ? sessions : [],
-            products: Array.isArray(products) ? products : [],
-          };
-        })
-      );
-
-      const nextSessionsByPos = {};
-      const nextProductsByPos = {};
-
-      results.forEach((r) => {
-        nextSessionsByPos[r.posId] = r.sessions;
-        nextProductsByPos[r.posId] = r.products;
-      });
-
-      setSessionsByPos(nextSessionsByPos);
-      setProductsByPos(nextProductsByPos);
+      await loadInventoryAndStocks();
+      await loadPOSData();
     } catch (err) {
-      setError(err.message || "Failed to load POS data");
+      setError(err.message || "Failed to load POS page");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadPOSData();
+    fullReload();
   }, []);
+
+  useEffect(() => {
+    if (!selectedInventoryId) return;
+    (async () => {
+      try {
+        const st = await stockApi.listByInventory(selectedInventoryId);
+        const safeStocks = Array.isArray(st) ? st : [];
+        setStocks(safeStocks);
+        setSelectedStockId(safeStocks.length > 0 ? String(safeStocks[0].id) : "");
+      } catch (err) {
+        setError(err.message || "Failed to load stocks");
+      }
+    })();
+  }, [selectedInventoryId]);
 
   const getStatus = (posId) => {
     const sessions = sessionsByPos[posId] || [];
-    return sessions.length > 0 ? sessions[0].status : "CLOSED"; // listSessions is DESC
+    return sessions.length > 0 ? sessions[0].status : "CLOSED";
+  };
+
+  const handleCreatePOS = async (e) => {
+    e.preventDefault();
+    if (!selectedStockId) return setError("Please select a stock");
+    if (!posName.trim()) return setError("POS name is required");
+
+    setSubmittingPOS(true);
+    setError("");
+    try {
+      await posApi.create({
+        stock_id: Number(selectedStockId),
+        name: posName.trim(),
+      });
+      setPosName("");
+      await loadPOSData();
+    } catch (err) {
+      setError(err.message || "Failed to create POS");
+    } finally {
+      setSubmittingPOS(false);
+    }
   };
 
   const handleOpenSession = async (posId) => {
@@ -89,19 +154,19 @@ export default function POSList() {
     }
   };
 
-  const totalProducts = useMemo(() => {
-    return Object.values(productsByPos).reduce((sum, arr) => sum + (arr?.length || 0), 0);
-  }, [productsByPos]);
+  const totalProducts = useMemo(
+    () => Object.values(productsByPos).reduce((sum, arr) => sum + (arr?.length || 0), 0),
+    [productsByPos]
+  );
 
-  const totalStock = useMemo(() => {
-    return Object.values(productsByPos).reduce((sum, arr) => {
-      const local = (arr || []).reduce(
-        (s, p) => s + Number(p.quantity || 0),
+  const totalStock = useMemo(
+    () =>
+      Object.values(productsByPos).reduce(
+        (sum, arr) => sum + (arr || []).reduce((s, p) => s + Number(p.quantity || 0), 0),
         0
-      );
-      return sum + local;
-    }, 0);
-  }, [productsByPos]);
+      ),
+    [productsByPos]
+  );
 
   return (
     <div className="page">
@@ -120,24 +185,80 @@ export default function POSList() {
         </div>
       </div>
 
+      <div className="grid2" style={{ marginBottom: 12 }}>
+        <aside className="card">
+          <div className="cardHeader">
+            <h2>Create POS Terminal</h2>
+            <span>FastAPI POST</span>
+          </div>
+
+          <form onSubmit={handleCreatePOS}>
+            <div style={{ display: "grid", gap: 10 }}>
+              <select
+                className="input"
+                value={selectedInventoryId}
+                onChange={(e) => setSelectedInventoryId(e.target.value)}
+              >
+                <option value="">Select inventory</option>
+                {inventories.map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    #{inv.id} - {inv.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                className="input"
+                value={selectedStockId}
+                onChange={(e) => setSelectedStockId(e.target.value)}
+              >
+                <option value="">Select stock</option>
+                {stocks.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    #{s.id} - {s.name}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                className="input"
+                placeholder="POS name"
+                value={posName}
+                onChange={(e) => setPosName(e.target.value)}
+              />
+
+              <button className="btn btnPrimary" type="submit" disabled={submittingPOS}>
+                {submittingPOS ? "Creating..." : "Create POS"}
+              </button>
+            </div>
+          </form>
+        </aside>
+
+        <aside className="card">
+          <div className="cardHeader">
+            <h2>Status</h2>
+            <span>Live backend</span>
+          </div>
+          {error ? (
+            <p style={{ color: "#ff8b8b", fontSize: 12 }}>{error}</p>
+          ) : (
+            <p style={{ margin: 0, color: "rgba(255,255,255,0.75)" }}>
+              POS terminals, sessions, and product tables are live from FastAPI + MySQL.
+            </p>
+          )}
+        </aside>
+      </div>
+
       <section className="card">
         <div className="cardHeader">
           <h2>POS Units</h2>
           <span>Sessions + products (live)</span>
         </div>
 
-        {error && (
-          <p style={{ marginBottom: 10, color: "#ff8b8b", fontSize: 12 }}>
-            {error}
-          </p>
-        )}
-
         {loading ? (
           <p>Loading POS units...</p>
         ) : posList.length === 0 ? (
-          <p style={{ margin: 0, color: "rgba(255,255,255,0.75)" }}>
-            No POS units found. (Create POS from Swagger for now, or we can add a POS create form next.)
-          </p>
+          <p>No POS units found.</p>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
             {posList.map((pos) => {
@@ -147,11 +268,7 @@ export default function POSList() {
               const isBusy = !!actionLoading[pos.id];
 
               return (
-                <div
-                  key={pos.id}
-                  className="card"
-                  style={{ background: "rgba(255,255,255,0.04)" }}
-                >
+                <div key={pos.id} className="card" style={{ background: "rgba(255,255,255,0.04)" }}>
                   <div className="cardHeader">
                     <h2>{pos.name}</h2>
                     <span>Stock ID: {pos.stock_id}</span>
@@ -169,8 +286,7 @@ export default function POSList() {
                   >
                     <span className="badge">
                       <span className={isOpen ? "dot dotGreen" : "dot dotRed"} />
-                      Session:{" "}
-                      <b style={{ color: "rgba(255,255,255,0.92)" }}>{status}</b>
+                      Session: <b style={{ color: "rgba(255,255,255,0.92)" }}>{status}</b>
                     </span>
 
                     <div className="btnRow">
@@ -205,9 +321,7 @@ export default function POSList() {
                       </thead>
                       <tbody>
                         {products.length === 0 ? (
-                          <tr>
-                            <td colSpan={4}>No products for stock #{pos.stock_id}</td>
-                          </tr>
+                          <tr><td colSpan={4}>No products for stock #{pos.stock_id}</td></tr>
                         ) : (
                           products.map((p) => (
                             <tr key={p.id}>
@@ -221,16 +335,6 @@ export default function POSList() {
                       </tbody>
                     </table>
                   </div>
-
-                  <p
-                    style={{
-                      margin: "10px 0 0",
-                      color: "rgba(255,255,255,0.65)",
-                      fontSize: 12,
-                    }}
-                  >
-                    Products loaded from backend using this POS stock_id
-                  </p>
                 </div>
               );
             })}

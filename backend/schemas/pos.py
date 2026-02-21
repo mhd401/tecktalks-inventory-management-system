@@ -12,3 +12,7 @@ class POSRead(BaseModel):
     created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class POSUpdate(BaseModel):
+    name: str
+    stock_id: int
