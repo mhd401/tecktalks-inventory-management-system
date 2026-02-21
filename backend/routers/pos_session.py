@@ -49,3 +49,12 @@ def close_session(pos_id: int):
         status_code=404,
         detail="No open session found for this POS"
     )
+
+
+@router.get("/{pos_id}/session", response_model=POSSessionResponse)
+def get_session(pos_id: int):
+    for session in reversed(sessions):
+        if session.pos_id == pos_id:
+            return {"message": "Session fetched", "session": session}
+    raise HTTPException(status_code=404, detail="No session found for this POS")
+
