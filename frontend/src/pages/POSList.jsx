@@ -1,37 +1,99 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { listProductsByStock } from "../api/products";
+import { listPOS, createPOS, getSession, openSessionApi, closeSessionApi } from "../api/pos";
 
 export default function POSList() {
-  const posList = [
-    { id: 1, name: "POS 1", stockId: 10 },
-    { id: 2, name: "POS 2", stockId: 11 },
-  ];
+  const [posList, setPosList] = useState([]);
+  const [sessionStatus, setSessionStatus] = useState({});
+  const [name, setName] = useState("");
+  const [stockId, setStockId] = useState("");
+  const [loadingId, setLoadingId] = useState(null);
+  const [productsByStock, setProductsByStock] = useState({});
 
-  // Dummy products (you can later map them to stockId if you want)
-  const products = [
-    { id: 101, name: "Coca Cola", price: 1.5, stockQty: 24 },
-    { id: 102, name: "Water Bottle", price: 0.8, stockQty: 60 },
-    { id: 103, name: "Chips", price: 1.2, stockQty: 15 },
-    { id: 104, name: "Chocolate Bar", price: 1.0, stockQty: 5 },
-  ];
+  async function loadPOS() {
+    const data = await listPOS();
+    setPosList(data);
 
-  // Session status per POS id
-  const [sessionStatus, setSessionStatus] = useState(() => {
-    const initial = {};
-    posList.forEach((p) => (initial[p.id] = "CLOSED"));
-    return initial;
-  });
+    const statusMap = {};
+    await Promise.all(
+      data.map(async (p) => {
+        try {
+          const res = await getSession(p.id);
+          statusMap[p.id] = res.session.status; // "OPEN" / "CLOSED"
+        } catch {
+          statusMap[p.id] = "CLOSED";
+        }
+      })
+    );
+    setSessionStatus(statusMap);
+  }
 
-  const openSession = (posId) =>
-    setSessionStatus((prev) => ({ ...prev, [posId]: "OPEN" }));
+  async function loadProducts(stockId) {
+    if (productsByStock[stockId]) return; // cache
 
-  const closeSession = (posId) =>
-    setSessionStatus((prev) => ({ ...prev, [posId]: "CLOSED" }));
+    try {
+      const data = await listProductsByStock(stockId);
+      setProductsByStock((prev) => ({ ...prev, [stockId]: data }));
+    } catch (err) {
+      console.error("Failed to load products for stock", stockId, err);
+      setProductsByStock((prev) => ({ ...prev, [stockId]: [] }));
+    }
+  }
 
-  // (Optional) totals for KPI feel
-  const totalProducts = products.length;
+  // Load POS once on mount
+  useEffect(() => {
+    loadPOS().catch(console.error);
+  }, []);
+
+  // When POS list changes, load products for each stock_id
+  useEffect(() => {
+    posList.forEach((pos) => {
+      loadProducts(pos.stock_id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posList]);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!name.trim() || !stockId) return;
+
+    await createPOS({
+      name: name.trim(),
+      stock_id: Number(stockId),
+    });
+
+    setName("");
+    setStockId("");
+    await loadPOS();
+  };
+
+  const openSession = async (posId) => {
+    setLoadingId(posId);
+    try {
+      await openSessionApi(posId);
+      setSessionStatus((prev) => ({ ...prev, [posId]: "OPEN" }));
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const closeSession = async (posId) => {
+    setLoadingId(posId);
+    try {
+      await closeSessionApi(posId);
+      setSessionStatus((prev) => ({ ...prev, [posId]: "CLOSED" }));
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  // KPIs from real backend products (across all stocks)
+  const allProducts = useMemo(() => Object.values(productsByStock).flat(), [productsByStock]);
+  const totalProducts = allProducts.length;
   const totalStock = useMemo(
-    () => products.reduce((sum, p) => sum + p.stockQty, 0),
-    [products]
+    () => allProducts.reduce((sum, p) => sum + (p.quantity || 0), 0),
+    [allProducts]
   );
 
   return (
@@ -43,7 +105,7 @@ export default function POSList() {
         </div>
         <div className="kpi">
           <strong>{totalProducts}</strong>
-          <span>Products (mock)</span>
+          <span>Products (backend)</span>
         </div>
         <div className="kpi">
           <strong>{totalStock}</strong>
@@ -51,97 +113,106 @@ export default function POSList() {
         </div>
       </div>
 
+      {/* CREATE POS */}
+      <section className="card">
+        <div className="cardHeader">
+          <h2>Create POS</h2>
+        </div>
+
+        <form onSubmit={handleCreate} style={{ display: "flex", gap: 10 }}>
+          <input
+            className="input"
+            placeholder="POS name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            className="input"
+            placeholder="Stock ID"
+            type="number"
+            value={stockId}
+            onChange={(e) => setStockId(e.target.value)}
+          />
+          <button className="btn btnPrimary">Create</button>
+        </form>
+      </section>
+
+      {/* POS LIST */}
       <section className="card">
         <div className="cardHeader">
           <h2>POS Units</h2>
-          <span>Session + products (mock)</span>
         </div>
 
-        <div style={{ display: "grid", gap: 12 }}>
-          {posList.map((pos) => {
-            const status = sessionStatus[pos.id];
-            const isOpen = status === "OPEN";
+        {posList.map((pos) => {
+          const status = sessionStatus[pos.id] ?? "CLOSED";
+          const isOpen = status === "OPEN";
 
-            return (
-              <div
-                key={pos.id}
-                className="card"
-                style={{ background: "rgba(255,255,255,0.04)" }}
-              >
-                <div className="cardHeader">
-                  <h2>{pos.name}</h2>
-                  <span>Stock ID: {pos.stockId}</span>
-                </div>
+          const products = productsByStock[pos.stock_id] ?? [];
 
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    marginBottom: 10,
-                  }}
-                >
-                  <span className="badge">
-                    <span className={isOpen ? "dot dotGreen" : "dot dotRed"} />
-                    Session:{" "}
-                    <b style={{ color: "rgba(255,255,255,0.92)" }}>{status}</b>
-                  </span>
-
-                  <div className="btnRow">
-                    <button
-                      className="btn btnPrimary"
-                      onClick={() => openSession(pos.id)}
-                    >
-                      Open Session
-                    </button>
-                    <button
-                      className="btn btnDanger"
-                      onClick={() => closeSession(pos.id)}
-                    >
-                      Close Session
-                    </button>
-                  </div>
-                </div>
-
-                {/* Products table (dummy) */}
-                <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 100 }}>ID</th>
-                        <th>Product</th>
-                        <th style={{ width: 120 }}>Price</th>
-                        <th style={{ width: 140 }}>Stock Qty</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map((p) => (
-                        <tr key={p.id}>
-                          <td>#{p.id}</td>
-                          <td>{p.name}</td>
-                          <td>${p.price.toFixed(2)}</td>
-                          <td>{p.stockQty}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <p
-                  style={{
-                    margin: "10px 0 0",
-                    color: "rgba(255,255,255,0.65)",
-                    fontSize: 12,
-                  }}
-                >
-                  Products are mock data • later you can filter by stockId
-                </p>
+          return (
+            <div key={pos.id} className="card" style={{ marginBottom: 15 }}>
+              <div className="cardHeader">
+                <h2>{pos.name}</h2>
+                <span>Stock ID: {pos.stock_id}</span>
               </div>
-            );
-          })}
-        </div>
+
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <span className="badge">
+                  <span className={isOpen ? "dot dotGreen" : "dot dotRed"} />
+                  Session: {status}
+                </span>
+
+                <div className="btnRow" style={{ marginTop: 0 }}>
+                  <button
+                    className="btn btnPrimary"
+                    disabled={loadingId === pos.id}
+                    onClick={() => openSession(pos.id)}
+                    type="button"
+                  >
+                    Open
+                  </button>
+                  <button
+                    className="btn btnDanger"
+                    disabled={loadingId === pos.id}
+                    onClick={() => closeSession(pos.id)}
+                    type="button"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              {/* Products for this POS stock */}
+              <div className="card" style={{ padding: 0, overflow: "hidden", marginTop: 12 }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 100 }}>ID</th>
+                      <th>Product</th>
+                      <th style={{ width: 140 }}>Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((p) => (
+                      <tr key={p.id}>
+                        <td>#{p.id}</td>
+                        <td>{p.name}</td>
+                        <td>{p.quantity}</td>
+                      </tr>
+                    ))}
+                    {products.length === 0 && (
+                      <tr>
+                        <td colSpan={3} style={{ opacity: 0.7 }}>
+                          No products for this stock yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
       </section>
     </div>
   );
