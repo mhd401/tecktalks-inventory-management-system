@@ -1,19 +1,45 @@
-from fastapi import APIRouter, HTTPException
-from typing import List
-from models.product import products_db, Product
-from schemas.product import ProductCreate, ProductOut
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
-router = APIRouter()
+from database import get_db
+from models.stock import Stock
+from models.product import Product
+from schemas.product import ProductCreate, ProductRead
 
-# POST /products
-@router.post("/products", response_model=ProductOut)
-def create_product(product: ProductCreate):
-    new_id = len(products_db) + 1
-    new_product = Product(id=new_id, **product.dict())
-    products_db.append(new_product)
-    return new_product
+router = APIRouter(tags=["Products"])
 
-# GET /stocks/{stock_id}/products
-@router.get("/stocks/{stock_id}/products", response_model=List[ProductOut])
-def list_products(stock_id: int):
-    return [p for p in products_db if p.stock_id == stock_id]
+@router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
+def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
+    stock = db.query(Stock).filter(Stock.id == payload.stock_id).first()
+    if not stock:
+        raise HTTPException(status_code=404, detail="Stock not found")
+
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Product name cannot be empty")
+
+    if payload.sku:
+        existing_sku = db.query(Product).filter(Product.sku == payload.sku.strip()).first()
+        if existing_sku:
+            raise HTTPException(status_code=400, detail="SKU already exists")
+
+    product = Product(
+        stock_id=payload.stock_id,
+        name=name,
+        sku=payload.sku.strip() if payload.sku else None,
+        price=payload.price,
+        quantity=payload.quantity,
+    )
+    db.add(product)
+    db.commit()
+    db.refresh(product)
+    return product
+
+@router.get("/stocks/{stock_id}/products", response_model=list[ProductRead])
+def list_products_by_stock(stock_id: int, db: Session = Depends(get_db)):
+    return (
+        db.query(Product)
+        .filter(Product.stock_id == stock_id)
+        .order_by(Product.id.asc())
+        .all()
+    )

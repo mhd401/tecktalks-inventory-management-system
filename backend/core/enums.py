@@ -1,6 +1,5 @@
 from enum import Enum
 
-
-class SessionStatus(Enum):
+class SessionStatus(str, Enum):
     OPEN = "OPEN"
     CLOSED = "CLOSED"

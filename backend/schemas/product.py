@@ -1,23 +1,20 @@
-from pydantic import BaseModel
-
-class Product(BaseModel):
-    id: int
-    name: str
-    quantity: int
-    stock_id: int
-
-
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict
 
 class ProductCreate(BaseModel):
-    name: str
     stock_id: int
-    quantity: int
+    name: str
+    sku: str | None = None
+    price: float = 0.0
+    quantity: int = 0
 
-class ProductOut(BaseModel):
+class ProductRead(BaseModel):
     id: int
-    name: str
     stock_id: int
+    name: str
+    sku: str | None = None
+    price: float
     quantity: int
+    created_at: datetime | None = None
 
-
-
+    model_config = ConfigDict(from_attributes=True)
