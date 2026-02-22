@@ -19,7 +19,9 @@ export default function POSList() {
   const [loading, setLoading] = useState(true);
   const [submittingPOS, setSubmittingPOS] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [actionLoading, setActionLoading] = useState({});
+  const [productActionLoading, setProductActionLoading] = useState({});
 
   // Reusable edit modal state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -127,6 +129,27 @@ export default function POSList() {
     setActionLoading((prev) => ({ ...prev, [posId]: value }));
   };
 
+  const setProductBusy = (key, value) => {
+    setProductActionLoading((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const refreshPosCardData = async (pos) => {
+    const [sessions, products] = await Promise.all([
+      posApi.listSessions(pos.id).catch(() => []),
+      productApi.listByStock(pos.stock_id).catch(() => []),
+    ]);
+
+    setSessionsByPos((prev) => ({
+      ...prev,
+      [pos.id]: Array.isArray(sessions) ? sessions : [],
+    }));
+
+    setProductsByPos((prev) => ({
+      ...prev,
+      [pos.id]: Array.isArray(products) ? products : [],
+    }));
+  };
+
   const handleCreatePOS = async (e) => {
     e.preventDefault();
     if (!selectedStockId) return setError("Please select a stock");
@@ -134,6 +157,8 @@ export default function POSList() {
 
     setSubmittingPOS(true);
     setError("");
+    setSuccess("");
+
     try {
       await posApi.create({
         stock_id: Number(selectedStockId),
@@ -141,6 +166,7 @@ export default function POSList() {
       });
       setPosName("");
       await loadPOSData();
+      setSuccess("POS terminal created successfully");
     } catch (err) {
       setError(err.message || "Failed to create POS");
     } finally {
@@ -151,6 +177,8 @@ export default function POSList() {
   const handleOpenSession = async (posId) => {
     setBusy(posId, true);
     setError("");
+    setSuccess("");
+
     try {
       await posApi.openSession(posId);
       const sessions = await posApi.listSessions(posId);
@@ -158,6 +186,7 @@ export default function POSList() {
         ...prev,
         [posId]: Array.isArray(sessions) ? sessions : [],
       }));
+      setSuccess("POS session opened successfully");
     } catch (err) {
       setError(err.message || "Failed to open session");
     } finally {
@@ -168,6 +197,8 @@ export default function POSList() {
   const handleCloseSession = async (posId) => {
     setBusy(posId, true);
     setError("");
+    setSuccess("");
+
     try {
       await posApi.closeSession(posId);
       const sessions = await posApi.listSessions(posId);
@@ -175,10 +206,36 @@ export default function POSList() {
         ...prev,
         [posId]: Array.isArray(sessions) ? sessions : [],
       }));
+      setSuccess("POS session closed successfully");
     } catch (err) {
       setError(err.message || "Failed to close session");
     } finally {
       setBusy(posId, false);
+    }
+  };
+
+  const handleAdjustQuantity = async (pos, product, delta) => {
+    const key = `${pos.id}:${product.id}:${delta > 0 ? "inc" : "dec"}`;
+
+    setProductBusy(key, true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await productApi.adjustQuantity(product.id, {
+        delta,
+        reason: delta > 0 ? "POS restock" : "POS sale",
+        pos_id: pos.id,
+      });
+
+      await refreshPosCardData(pos);
+      setSuccess(
+        `${product.name}: quantity ${delta > 0 ? "increased" : "decreased"} successfully`
+      );
+    } catch (err) {
+      setError(err.message || "Failed to adjust quantity");
+    } finally {
+      setProductBusy(key, false);
     }
   };
 
@@ -191,6 +248,7 @@ export default function POSList() {
     });
     setIsEditOpen(true);
     setError("");
+    setSuccess("");
   };
 
   const handleSaveEditPOS = async (e) => {
@@ -213,6 +271,7 @@ export default function POSList() {
     setBusy(editingPos.id, true);
     setSavingEdit(true);
     setError("");
+    setSuccess("");
 
     try {
       await posApi.update(editingPos.id, {
@@ -225,6 +284,7 @@ export default function POSList() {
 
       // stock link may have changed -> reload cards/products
       await loadPOSData();
+      setSuccess("POS updated successfully");
     } catch (err) {
       setError(err.message || "Failed to update POS");
     } finally {
@@ -239,9 +299,12 @@ export default function POSList() {
 
     setBusy(pos.id, true);
     setError("");
+    setSuccess("");
+
     try {
       await posApi.remove(pos.id);
       await loadPOSData();
+      setSuccess("POS deleted successfully");
     } catch (err) {
       setError(err.message || "Failed to delete POS");
     } finally {
@@ -329,13 +392,18 @@ export default function POSList() {
             <h2>Status</h2>
             <span>Live backend</span>
           </div>
+
           {error ? (
-            <p style={{ color: "#ff8b8b", fontSize: 12 }}>{error}</p>
-          ) : (
-            <p style={{ margin: 0, color: "rgba(255,255,255,0.75)" }}>
-              POS terminals, sessions, and product tables are live from FastAPI + MySQL.
-            </p>
-          )}
+            <p style={{ color: "#ff8b8b", fontSize: 12, marginBottom: 8 }}>{error}</p>
+          ) : null}
+
+          {success ? (
+            <p style={{ color: "#8bffb0", fontSize: 12, marginBottom: 8 }}>{success}</p>
+          ) : null}
+
+          <p style={{ margin: 0, color: "rgba(255,255,255,0.75)" }}>
+            POS terminals, sessions, and product tables are live from FastAPI + MySQL.
+          </p>
         </aside>
       </div>
 
@@ -348,7 +416,7 @@ export default function POSList() {
         {loading ? (
           <p>Loading POS units...</p>
         ) : posList.length === 0 ? (
-          <p>No POS units found.</p>
+          <p>No POS units found. Create a POS terminal first.</p>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
             {posList.map((pos) => {
@@ -380,8 +448,7 @@ export default function POSList() {
                   >
                     <span className="badge">
                       <span className={isOpen ? "dot dotGreen" : "dot dotRed"} />
-                      Session:{" "}
-                      <b style={{ color: "rgba(255,255,255,0.92)" }}>{status}</b>
+                      Session: <b style={{ color: "rgba(255,255,255,0.92)" }}>{status}</b>
                     </span>
 
                     <div className="btnRow">
@@ -438,13 +505,14 @@ export default function POSList() {
                           <th style={{ width: 100 }}>ID</th>
                           <th>Product</th>
                           <th style={{ width: 120 }}>Price</th>
-                          <th style={{ width: 140 }}>Stock Qty</th>
+                          <th style={{ width: 120 }}>Stock Qty</th>
+                          <th style={{ width: 180 }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {products.length === 0 ? (
                           <tr>
-                            <td colSpan={4}>No products for stock #{pos.stock_id}</td>
+                            <td colSpan={5}>No products for this stock yet.</td>
                           </tr>
                         ) : (
                           products.map((p) => (
@@ -453,6 +521,35 @@ export default function POSList() {
                               <td>{p.name}</td>
                               <td>${Number(p.price).toFixed(2)}</td>
                               <td>{p.quantity}</td>
+                              <td>
+                                <div className="btnRow">
+                                  <button
+                                    className="btn"
+                                    type="button"
+                                    onClick={() => handleAdjustQuantity(pos, p, -1)}
+                                    disabled={
+                                      !isOpen ||
+                                      !!productActionLoading[`${pos.id}:${p.id}:dec`] ||
+                                      Number(p.quantity) <= 0
+                                    }
+                                    title={!isOpen ? "Open session first" : "Decrease quantity"}
+                                  >
+                                    {productActionLoading[`${pos.id}:${p.id}:dec`] ? "..." : "-1"}
+                                  </button>
+
+                                  <button
+                                    className="btn btnPrimary"
+                                    type="button"
+                                    onClick={() => handleAdjustQuantity(pos, p, +1)}
+                                    disabled={
+                                      !isOpen || !!productActionLoading[`${pos.id}:${p.id}:inc`]
+                                    }
+                                    title={!isOpen ? "Open session first" : "Increase quantity"}
+                                  >
+                                    {productActionLoading[`${pos.id}:${p.id}:inc`] ? "..." : "+1"}
+                                  </button>
+                                </div>
+                              </td>
                             </tr>
                           ))
                         )}

@@ -19,4 +19,11 @@ export const productApi = {
     apiFetch(`/products/${productId}`, {
       method: "DELETE",
     }),
+
+  adjustQuantity: (productId, payload) =>
+   apiFetch(`/products/${productId}/adjust-quantity`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }),
 };
+
