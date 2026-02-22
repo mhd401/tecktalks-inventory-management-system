@@ -10,4 +10,4 @@ class Inventory(Base):
     name = Column(String(255), nullable=False, unique=True)
     created_at = Column(DateTime, server_default=func.now())
 
-    stocks = relationship("Stock", back_populates="inventory", cascade="all, delete")
+    stocks = relationship("Stock", back_populates="inventory", cascade="all, delete-orphan")

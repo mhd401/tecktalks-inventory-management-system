@@ -23,4 +23,9 @@ class ProductUpdate(BaseModel):
     name: str
     sku: str | None = None
     price: float = Field(ge=0)                 
-    quantity: int = Field(ge=0)              
+    quantity: int = Field(ge=0)       
+
+class ProductQuantityAdjust(BaseModel):
+    delta: int
+    reason: str | None = None
+    pos_id: int | None = None       

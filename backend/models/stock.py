@@ -14,5 +14,5 @@ class Stock(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     inventory = relationship("Inventory", back_populates="stocks")
-    products = relationship("Product", back_populates="stock", cascade="all, delete")
-    pos_terminals = relationship("POS", back_populates="stock", cascade="all, delete")
+    products = relationship("Product", back_populates="stock", cascade="all, delete-orphan")
+    pos_terminals = relationship("POS", back_populates="stock", cascade="all, delete-orphan")

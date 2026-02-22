@@ -12,4 +12,4 @@ class POS(Base):
     created_at = Column(DateTime, server_default=func.now())
 
     stock = relationship("Stock", back_populates="pos_terminals")
-    sessions = relationship("POSSession", back_populates="pos", cascade="all, delete")
+    sessions = relationship("POSSession", back_populates="pos", cascade="all, delete-orphan")

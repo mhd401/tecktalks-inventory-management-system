@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
 from database import Base, engine
 
@@ -23,8 +24,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Safe if tables already exist (it won't recreate them)
-Base.metadata.create_all(bind=engine)
+
+
+# ... keep your existing imports
+
+# Only auto-create in local dev if explicitly enabled
+if os.getenv("AUTO_CREATE_TABLES", "false").lower() == "true":
+    Base.metadata.create_all(bind=engine)
 
 app.include_router(inventory.router)
 app.include_router(stock.router)

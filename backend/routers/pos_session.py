@@ -2,7 +2,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-
+from sqlalchemy.exc import IntegrityError
 from database import get_db
 from core.enums import SessionStatus
 from models.pos import POS
@@ -31,8 +31,12 @@ def open_pos_session(pos_id: int, db: Session = Depends(get_db)):
         opened_at=datetime.now()
     )
     db.add(session)
-    db.commit()
-    db.refresh(session)
+    try:
+        db.commit()
+        db.refresh(session)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Failed to open POS session")
     return session
 
 @router.post("/{pos_id}/session/close", response_model=POSSessionRead)
@@ -52,8 +56,12 @@ def close_pos_session(pos_id: int, db: Session = Depends(get_db)):
 
     open_session.status = SessionStatus.CLOSED
     open_session.closed_at = datetime.now()
-    db.commit()
-    db.refresh(open_session)
+    try:
+        db.commit()
+        db.refresh(open_session)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Failed to close POS session")
     return open_session
 
 @router.get("/{pos_id}/sessions", response_model=list[POSSessionRead])
