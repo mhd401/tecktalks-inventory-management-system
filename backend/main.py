@@ -1,6 +1,7 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import os
 
 from database import Base, engine
 
@@ -8,7 +9,10 @@ from database import Base, engine
 from models import Inventory, Stock, Product, POS, POSSession  # noqa: F401
 
 # Routers
-from routers import inventory, stock, product, pos, pos_session
+from routers.inventory import router as inventory_router
+from routers.stock import router as stock_router
+from routers.pos_session import router as pos_session_router
+from routers import product, pos
 
 app = FastAPI(title="TechTalks Inventory API")
 
@@ -24,19 +28,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-
-# ... keep your existing imports
-
-# Only auto-create in local dev if explicitly enabled
+# Only auto-create tables in local dev if explicitly enabled
 if os.getenv("AUTO_CREATE_TABLES", "false").lower() == "true":
     Base.metadata.create_all(bind=engine)
 
-app.include_router(inventory.router)
-app.include_router(stock.router)
-app.include_router(product.router)      # include ONCE only
+# Routers (include each ONCE)
+app.include_router(inventory_router)
+app.include_router(stock_router)
+app.include_router(pos_session_router)
+app.include_router(product.router)
 app.include_router(pos.router)
-app.include_router(pos_session.router)
 
 @app.get("/")
 def root():

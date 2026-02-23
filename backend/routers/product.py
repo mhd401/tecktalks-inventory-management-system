@@ -165,10 +165,11 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-        db.delete(product)
+    db.delete(product)
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="Failed to delete product due to DB constraint")
+
     return Response(status_code=204)

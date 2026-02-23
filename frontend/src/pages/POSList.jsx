@@ -16,6 +16,7 @@ export default function POSList() {
   const [posList, setPosList] = useState([]);
   const [sessionsByPos, setSessionsByPos] = useState({});
   const [productsByPos, setProductsByPos] = useState({});
+
   const [loading, setLoading] = useState(true);
   const [submittingPOS, setSubmittingPOS] = useState(false);
   const [error, setError] = useState("");
@@ -23,38 +24,40 @@ export default function POSList() {
   const [actionLoading, setActionLoading] = useState({});
   const [productActionLoading, setProductActionLoading] = useState({});
 
-  // Reusable edit modal state
+  // Edit modal state
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingPos, setEditingPos] = useState(null);
-  const [editForm, setEditForm] = useState({
-    name: "",
-    stock_id: "",
-  });
+  const [editForm, setEditForm] = useState({ name: "", stock_id: "" });
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const setBusy = (posId, value) => {
+    setActionLoading((prev) => ({ ...prev, [posId]: value }));
+  };
+
+  const setProductBusy = (key, value) => {
+    setProductActionLoading((prev) => ({ ...prev, [key]: value }));
+  };
 
   const loadInventoryAndStocks = async () => {
     const invs = await inventoryApi.list();
     const safeInvs = Array.isArray(invs) ? invs : [];
     setInventories(safeInvs);
 
-    if (safeInvs.length > 0) {
-      const invId = String(safeInvs[0].id);
-      setSelectedInventoryId(invId);
-
-      const st = await stockApi.listByInventory(Number(invId));
-      const safeStocks = Array.isArray(st) ? st : [];
-      setStocks(safeStocks);
-
-      if (safeStocks.length > 0) {
-        setSelectedStockId(String(safeStocks[0].id));
-      } else {
-        setSelectedStockId("");
-      }
-    } else {
+    if (safeInvs.length === 0) {
       setStocks([]);
       setSelectedInventoryId("");
       setSelectedStockId("");
+      return;
     }
+
+    const invId = String(safeInvs[0].id);
+    setSelectedInventoryId(invId);
+
+    const st = await stockApi.listByInventory(Number(invId));
+    const safeStocks = Array.isArray(st) ? st : [];
+    setStocks(safeStocks);
+
+    setSelectedStockId(safeStocks.length > 0 ? String(safeStocks[0].id) : "");
   };
 
   const loadPOSData = async () => {
@@ -64,14 +67,26 @@ export default function POSList() {
 
     const results = await Promise.all(
       safePOS.map(async (pos) => {
-        const [sessions, products] = await Promise.all([
-          posApi.listSessions(pos.id).catch(() => []),
-          productApi.listByStock(pos.stock_id).catch(() => []),
-        ]);
+        // Sessions: prefer listSessions (history). If not implemented, fallback to getSession.
+        const sessions = await (posApi.listSessions
+          ? posApi.listSessions(pos.id).catch(() => [])
+          : Promise.resolve([]));
 
+        // If sessions list is empty and getSession exists, try it to show status
+        let sessionsFinal = Array.isArray(sessions) ? sessions : [];
+        if (sessionsFinal.length === 0 && posApi.getSession) {
+          try {
+            const s = await posApi.getSession(pos.id);
+            if (s) sessionsFinal = [s];
+          } catch {
+            // ignore
+          }
+        }
+
+        const products = await productApi.listByStock(pos.stock_id).catch(() => []);
         return {
           posId: pos.id,
-          sessions: Array.isArray(sessions) ? sessions : [],
+          sessions: sessionsFinal,
           products: Array.isArray(products) ? products : [],
         };
       })
@@ -91,11 +106,12 @@ export default function POSList() {
   const fullReload = async () => {
     setLoading(true);
     setError("");
+    setSuccess("");
     try {
       await loadInventoryAndStocks();
       await loadPOSData();
     } catch (err) {
-      setError(err.message || "Failed to load POS page");
+      setError(err?.message || "Failed to load POS page");
     } finally {
       setLoading(false);
     }
@@ -105,6 +121,7 @@ export default function POSList() {
     fullReload();
   }, []);
 
+  // When inventory changes -> reload its stocks
   useEffect(() => {
     if (!selectedInventoryId) return;
 
@@ -115,7 +132,7 @@ export default function POSList() {
         setStocks(safeStocks);
         setSelectedStockId(safeStocks.length > 0 ? String(safeStocks[0].id) : "");
       } catch (err) {
-        setError(err.message || "Failed to load stocks");
+        setError(err?.message || "Failed to load stocks");
       }
     })();
   }, [selectedInventoryId]);
@@ -125,23 +142,26 @@ export default function POSList() {
     return sessions.length > 0 ? sessions[0].status : "CLOSED";
   };
 
-  const setBusy = (posId, value) => {
-    setActionLoading((prev) => ({ ...prev, [posId]: value }));
-  };
-
-  const setProductBusy = (key, value) => {
-    setProductActionLoading((prev) => ({ ...prev, [key]: value }));
-  };
-
   const refreshPosCardData = async (pos) => {
-    const [sessions, products] = await Promise.all([
-      posApi.listSessions(pos.id).catch(() => []),
-      productApi.listByStock(pos.stock_id).catch(() => []),
-    ]);
+    const sessions = await (posApi.listSessions
+      ? posApi.listSessions(pos.id).catch(() => [])
+      : Promise.resolve([]));
+
+    let sessionsFinal = Array.isArray(sessions) ? sessions : [];
+    if (sessionsFinal.length === 0 && posApi.getSession) {
+      try {
+        const s = await posApi.getSession(pos.id);
+        if (s) sessionsFinal = [s];
+      } catch {
+        // ignore
+      }
+    }
+
+    const products = await productApi.listByStock(pos.stock_id).catch(() => []);
 
     setSessionsByPos((prev) => ({
       ...prev,
-      [pos.id]: Array.isArray(sessions) ? sessions : [],
+      [pos.id]: sessionsFinal,
     }));
 
     setProductsByPos((prev) => ({
@@ -168,7 +188,7 @@ export default function POSList() {
       await loadPOSData();
       setSuccess("POS terminal created successfully");
     } catch (err) {
-      setError(err.message || "Failed to create POS");
+      setError(err?.message || "Failed to create POS");
     } finally {
       setSubmittingPOS(false);
     }
@@ -181,14 +201,12 @@ export default function POSList() {
 
     try {
       await posApi.openSession(posId);
-      const sessions = await posApi.listSessions(posId);
-      setSessionsByPos((prev) => ({
-        ...prev,
-        [posId]: Array.isArray(sessions) ? sessions : [],
-      }));
+      // refresh sessions/products for that POS
+      const pos = posList.find((p) => p.id === posId);
+      if (pos) await refreshPosCardData(pos);
       setSuccess("POS session opened successfully");
     } catch (err) {
-      setError(err.message || "Failed to open session");
+      setError(err?.message || "Failed to open session");
     } finally {
       setBusy(posId, false);
     }
@@ -201,22 +219,24 @@ export default function POSList() {
 
     try {
       await posApi.closeSession(posId);
-      const sessions = await posApi.listSessions(posId);
-      setSessionsByPos((prev) => ({
-        ...prev,
-        [posId]: Array.isArray(sessions) ? sessions : [],
-      }));
+      const pos = posList.find((p) => p.id === posId);
+      if (pos) await refreshPosCardData(pos);
       setSuccess("POS session closed successfully");
     } catch (err) {
-      setError(err.message || "Failed to close session");
+      setError(err?.message || "Failed to close session");
     } finally {
       setBusy(posId, false);
     }
   };
 
+  // Optional: only if backend supports adjustQuantity endpoint
   const handleAdjustQuantity = async (pos, product, delta) => {
-    const key = `${pos.id}:${product.id}:${delta > 0 ? "inc" : "dec"}`;
+    if (!productApi.adjustQuantity) {
+      setError("Adjust quantity endpoint not available yet");
+      return;
+    }
 
+    const key = `${pos.id}:${product.id}:${delta > 0 ? "inc" : "dec"}`;
     setProductBusy(key, true);
     setError("");
     setSuccess("");
@@ -227,19 +247,17 @@ export default function POSList() {
         reason: delta > 0 ? "POS restock" : "POS sale",
         pos_id: pos.id,
       });
-
       await refreshPosCardData(pos);
       setSuccess(
         `${product.name}: quantity ${delta > 0 ? "increased" : "decreased"} successfully`
       );
     } catch (err) {
-      setError(err.message || "Failed to adjust quantity");
+      setError(err?.message || "Failed to adjust quantity");
     } finally {
       setProductBusy(key, false);
     }
   };
 
-  // Open edit modal
   const handleEditPOS = (pos) => {
     setEditingPos(pos);
     setEditForm({
@@ -258,15 +276,9 @@ export default function POSList() {
     const trimmedName = (editForm.name || "").trim();
     const stockIdNum = Number(editForm.stock_id);
 
-    if (!trimmedName) {
-      setError("POS name is required");
-      return;
-    }
-
-    if (!Number.isInteger(stockIdNum) || stockIdNum <= 0) {
-      setError("Stock ID must be a valid positive integer");
-      return;
-    }
+    if (!trimmedName) return setError("POS name is required");
+    if (!Number.isInteger(stockIdNum) || stockIdNum <= 0)
+      return setError("Stock ID must be a valid positive integer");
 
     setBusy(editingPos.id, true);
     setSavingEdit(true);
@@ -282,11 +294,10 @@ export default function POSList() {
       setIsEditOpen(false);
       setEditingPos(null);
 
-      // stock link may have changed -> reload cards/products
       await loadPOSData();
       setSuccess("POS updated successfully");
     } catch (err) {
-      setError(err.message || "Failed to update POS");
+      setError(err?.message || "Failed to update POS");
     } finally {
       setBusy(editingPos.id, false);
       setSavingEdit(false);
@@ -306,21 +317,26 @@ export default function POSList() {
       await loadPOSData();
       setSuccess("POS deleted successfully");
     } catch (err) {
-      setError(err.message || "Failed to delete POS");
+      setError(err?.message || "Failed to delete POS");
     } finally {
       setBusy(pos.id, false);
     }
   };
 
   const totalProducts = useMemo(
-    () => Object.values(productsByPos).reduce((sum, arr) => sum + (arr?.length || 0), 0),
+    () =>
+      Object.values(productsByPos).reduce(
+        (sum, arr) => sum + (arr?.length || 0),
+        0
+      ),
     [productsByPos]
   );
 
   const totalStock = useMemo(
     () =>
       Object.values(productsByPos).reduce(
-        (sum, arr) => sum + (arr || []).reduce((s, p) => s + Number(p.quantity || 0), 0),
+        (sum, arr) =>
+          sum + (arr || []).reduce((s, p) => s + Number(p.quantity || 0), 0),
         0
       ),
     [productsByPos]
@@ -380,7 +396,11 @@ export default function POSList() {
                 onChange={(e) => setPosName(e.target.value)}
               />
 
-              <button className="btn btnPrimary" type="submit" disabled={submittingPOS}>
+              <button
+                className="btn btnPrimary"
+                type="submit"
+                disabled={submittingPOS}
+              >
                 {submittingPOS ? "Creating..." : "Create POS"}
               </button>
             </div>
@@ -394,15 +414,19 @@ export default function POSList() {
           </div>
 
           {error ? (
-            <p style={{ color: "#ff8b8b", fontSize: 12, marginBottom: 8 }}>{error}</p>
+            <p style={{ color: "#ff8b8b", fontSize: 12, marginBottom: 8 }}>
+              {error}
+            </p>
           ) : null}
 
           {success ? (
-            <p style={{ color: "#8bffb0", fontSize: 12, marginBottom: 8 }}>{success}</p>
+            <p style={{ color: "#8bffb0", fontSize: 12, marginBottom: 8 }}>
+              {success}
+            </p>
           ) : null}
 
           <p style={{ margin: 0, color: "rgba(255,255,255,0.75)" }}>
-            POS terminals, sessions, and product tables are live from FastAPI + MySQL.
+            POS terminals, sessions, and product tables are live from FastAPI.
           </p>
         </aside>
       </div>
@@ -448,7 +472,8 @@ export default function POSList() {
                   >
                     <span className="badge">
                       <span className={isOpen ? "dot dotGreen" : "dot dotRed"} />
-                      Session: <b style={{ color: "rgba(255,255,255,0.92)" }}>{status}</b>
+                      Session:{" "}
+                      <b style={{ color: "rgba(255,255,255,0.92)" }}>{status}</b>
                     </span>
 
                     <div className="btnRow">
@@ -471,13 +496,7 @@ export default function POSList() {
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      marginBottom: 10,
-                    }}
-                  >
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
                     <div className="btnRow">
                       <button
                         className="btn"
@@ -504,7 +523,6 @@ export default function POSList() {
                         <tr>
                           <th style={{ width: 100 }}>ID</th>
                           <th>Product</th>
-                          <th style={{ width: 120 }}>Price</th>
                           <th style={{ width: 120 }}>Stock Qty</th>
                           <th style={{ width: 180 }}>Actions</th>
                         </tr>
@@ -512,14 +530,13 @@ export default function POSList() {
                       <tbody>
                         {products.length === 0 ? (
                           <tr>
-                            <td colSpan={5}>No products for this stock yet.</td>
+                            <td colSpan={4}>No products for this stock yet.</td>
                           </tr>
                         ) : (
                           products.map((p) => (
                             <tr key={p.id}>
                               <td>#{p.id}</td>
                               <td>{p.name}</td>
-                              <td>${Number(p.price).toFixed(2)}</td>
                               <td>{p.quantity}</td>
                               <td>
                                 <div className="btnRow">
@@ -528,6 +545,7 @@ export default function POSList() {
                                     type="button"
                                     onClick={() => handleAdjustQuantity(pos, p, -1)}
                                     disabled={
+                                      !productApi.adjustQuantity ||
                                       !isOpen ||
                                       !!productActionLoading[`${pos.id}:${p.id}:dec`] ||
                                       Number(p.quantity) <= 0
@@ -542,7 +560,9 @@ export default function POSList() {
                                     type="button"
                                     onClick={() => handleAdjustQuantity(pos, p, +1)}
                                     disabled={
-                                      !isOpen || !!productActionLoading[`${pos.id}:${p.id}:inc`]
+                                      !productApi.adjustQuantity ||
+                                      !isOpen ||
+                                      !!productActionLoading[`${pos.id}:${p.id}:inc`]
                                     }
                                     title={!isOpen ? "Open session first" : "Increase quantity"}
                                   >
@@ -555,6 +575,11 @@ export default function POSList() {
                         )}
                       </tbody>
                     </table>
+                    {!productApi.adjustQuantity ? (
+                      <p style={{ margin: 10, opacity: 0.7, fontSize: 12 }}>
+                        Quantity adjustment is not wired yet (endpoint missing).
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               );

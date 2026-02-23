@@ -5,6 +5,7 @@ import EditModal from "../components/EditModal";
 export default function InventoryList() {
   const [inventories, setInventories] = useState([]);
   const [name, setName] = useState("");
+  const [userId, setUserId] = useState(""); // optional (depends on backend)
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -22,7 +23,7 @@ export default function InventoryList() {
       const data = await inventoryApi.list();
       setInventories(Array.isArray(data) ? data : []);
     } catch (err) {
-      setError(err.message || "Failed to load inventories");
+      setError(err?.message || "Failed to load inventories");
     } finally {
       setLoading(false);
     }
@@ -33,25 +34,37 @@ export default function InventoryList() {
   }, []);
 
   const total = inventories.length;
-  const newest = useMemo(() => inventories[inventories.length - 1], [inventories]);
+  const newest = useMemo(
+    () => inventories[inventories.length - 1],
+    [inventories]
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const trimmed = name.trim();
+    const trimmedName = name.trim();
 
-    if (!trimmed) {
+    if (!trimmedName) {
       setError("Inventory name cannot be empty");
       return;
     }
 
     setSubmitting(true);
     setError("");
+
     try {
-      await inventoryApi.create({ name: trimmed });
+      const payload = { name: trimmedName };
+
+      // send user_id only if provided (avoid breaking backend if it doesn't accept it)
+      if (String(userId).trim() !== "") {
+        payload.user_id = Number(userId);
+      }
+
+      await inventoryApi.create(payload);
       setName("");
+      setUserId("");
       await loadInventories();
     } catch (err) {
-      setError(err.message || "Failed to create inventory");
+      setError(err?.message || "Failed to create inventory");
     } finally {
       setSubmitting(false);
     }
@@ -60,7 +73,7 @@ export default function InventoryList() {
   // Open Edit Modal
   const handleEdit = (inv) => {
     setEditingInventory(inv);
-    setEditForm({ name: inv.name || "" });
+    setEditForm({ name: inv?.name || "" });
     setIsEditOpen(true);
     setError("");
   };
@@ -78,13 +91,14 @@ export default function InventoryList() {
 
     setSavingEdit(true);
     setError("");
+
     try {
       await inventoryApi.update(editingInventory.id, { name: trimmed });
       setIsEditOpen(false);
       setEditingInventory(null);
       await loadInventories();
     } catch (err) {
-      setError(err.message || "Failed to update inventory");
+      setError(err?.message || "Failed to update inventory");
     } finally {
       setSavingEdit(false);
     }
@@ -99,7 +113,7 @@ export default function InventoryList() {
       await inventoryApi.remove(inv.id);
       await loadInventories();
     } catch (err) {
-      setError(err.message || "Failed to delete inventory");
+      setError(err?.message || "Failed to delete inventory");
     }
   };
 
@@ -124,7 +138,7 @@ export default function InventoryList() {
         <section className="card">
           <div className="cardHeader">
             <h2>Inventory List</h2>
-            <span>MySQL / FastAPI</span>
+            <span>DB / FastAPI</span>
           </div>
 
           {error && (
@@ -138,6 +152,7 @@ export default function InventoryList() {
               <tr>
                 <th style={{ width: 120 }}>ID</th>
                 <th>Name</th>
+                <th style={{ width: 140 }}>Owner</th>
                 <th style={{ width: 160 }}>Status</th>
                 <th style={{ width: 220 }}>Actions</th>
               </tr>
@@ -145,17 +160,18 @@ export default function InventoryList() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4}>Loading...</td>
+                  <td colSpan={5}>Loading...</td>
                 </tr>
               ) : inventories.length === 0 ? (
                 <tr>
-                  <td colSpan={4}>No inventories yet.</td>
+                  <td colSpan={5}>No inventories yet.</td>
                 </tr>
               ) : (
                 inventories.map((inv) => (
                   <tr key={inv.id}>
                     <td>#{inv.id}</td>
                     <td>{inv.name}</td>
+                    <td>{inv.user_id ?? "-"}</td>
                     <td>
                       <span className="badge">
                         <span className="dot dotGreen" />
@@ -204,12 +220,23 @@ export default function InventoryList() {
                 onChange={(e) => setName(e.target.value)}
               />
 
-              <button className="btn btnPrimary" type="submit" disabled={submitting}>
+              <input
+                className="input"
+                placeholder="User ID (optional)"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+              />
+
+              <button
+                className="btn btnPrimary"
+                type="submit"
+                disabled={submitting}
+              >
                 {submitting ? "Creating..." : "Create"}
               </button>
 
               <p style={{ margin: 0, color: "rgba(255,255,255,0.65)", fontSize: 12 }}>
-                Data is now saved in MySQL
+                Data is saved in DB • Edit/Delete supported
               </p>
             </div>
           </form>

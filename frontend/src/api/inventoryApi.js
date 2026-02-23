@@ -1,22 +1,22 @@
-import { apiFetch } from "./client";
+import { api } from "./client";
 
 export const inventoryApi = {
-  list: () => apiFetch("/inventories/"),
+  list: () => api("/inventories"),
 
   create: (payload) =>
-    apiFetch("/inventories/", {
+    api("/inventories", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
   update: (inventoryId, payload) =>
-    apiFetch(`/inventories/${inventoryId}`, {
+    api(`/inventories/${inventoryId}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
 
   remove: (inventoryId) =>
-    apiFetch(`/inventories/${inventoryId}`, {
+    api(`/inventories/${inventoryId}`, {
       method: "DELETE",
     }),
 };

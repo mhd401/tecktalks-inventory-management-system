@@ -1,22 +1,22 @@
-import { apiFetch } from "./client";
+import { api } from "./client";
 
 export const stockApi = {
-  listByInventory: (inventoryId) => apiFetch(`/stocks/inventories/${inventoryId}`),
+  listByInventory: (inventoryId) => api(`/stocks/inventories/${inventoryId}`),
 
   create: (payload) =>
-    apiFetch("/stocks/", {
+    api("/stocks", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
   update: (stockId, payload) =>
-    apiFetch(`/stocks/${stockId}`, {
+    api(`/stocks/${stockId}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
 
   remove: (stockId) =>
-    apiFetch(`/stocks/${stockId}`, {
+    api(`/stocks/${stockId}`, {
       method: "DELETE",
     }),
 };

@@ -1,12 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models.stock import Stock
 from models.pos import POS
-from schemas.pos import POSCreate, POSRead
 from schemas.pos import POSCreate, POSRead, POSUpdate
-from fastapi import Response
 
 router = APIRouter(prefix="/pos", tags=["POS"])
 

@@ -1,16 +1,21 @@
-const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 async function parseError(res) {
   try {
     const data = await res.json();
-    return data?.detail || JSON.stringify(data);
+    // FastAPI commonly returns { detail: ... }
+    return data?.detail ? JSON.stringify(data.detail) : JSON.stringify(data);
   } catch {
-    return await res.text();
+    try {
+      return await res.text();
+    } catch {
+      return `HTTP ${res.status}`;
+    }
   }
 }
 
-export async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
+export async function api(path, options = {}) {
+  const res = await fetch(`${BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),
@@ -19,11 +24,14 @@ export async function apiFetch(path, options = {}) {
   });
 
   if (!res.ok) {
-    const message = await parseError(res);
-    throw new Error(message || "API request failed");
+    const msg = await parseError(res);
+    throw new Error(msg || `HTTP ${res.status}`);
   }
 
-  // For safety if any endpoint returns empty body
+  // handle empty body responses safely
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) return res.json();
+
   const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  return text ? text : null;
 }

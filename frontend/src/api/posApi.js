@@ -1,27 +1,29 @@
-import { apiFetch } from "./client";
+import { api } from "./client";
 
 export const posApi = {
-  list: () => apiFetch("/pos/"),
-  listByStock: (stockId) => apiFetch(`/pos/stocks/${stockId}`),
+  list: () => api("/pos"),
+  listByStock: (stockId) => api(`/pos/stocks/${stockId}`),
 
   create: (payload) =>
-    apiFetch("/pos/", {
+    api("/pos", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
   update: (posId, payload) =>
-    apiFetch(`/pos/${posId}`, {
+    api(`/pos/${posId}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
 
   remove: (posId) =>
-    apiFetch(`/pos/${posId}`, {
+    api(`/pos/${posId}`, {
       method: "DELETE",
     }),
 
-  openSession: (posId) => apiFetch(`/pos/${posId}/session/open`, { method: "POST" }),
-  closeSession: (posId) => apiFetch(`/pos/${posId}/session/close`, { method: "POST" }),
-  listSessions: (posId) => apiFetch(`/pos/${posId}/sessions`),
+  openSession: (posId) => api(`/pos/${posId}/session/open`, { method: "POST" }),
+  closeSession: (posId) => api(`/pos/${posId}/session/close`, { method: "POST" }),
+  listSessions: (posId) => api(`/pos/${posId}/sessions`),
+
+  getSession: (posId) => api(`/pos/${posId}/session`),
 };
