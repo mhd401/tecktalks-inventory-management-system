@@ -16,23 +16,21 @@ load_dotenv(BASE_DIR / ".env")
 
 # --- Import your SQLAlchemy Base + models ---
 from database import Base
-from models import Inventory, Stock, Product, POS, POSSession  # noqa: F401
+from models import Inventory, Stock, Product, POS, POSSession, User  # noqa: F401
 
-# Alembic Config object
 config = context.config
 
-# Set DB URL from .env
 database_url = os.getenv("DATABASE_URL")
 if not database_url:
     raise ValueError("DATABASE_URL is not set in backend/.env")
+if not database_url.lower().startswith("mysql+"):
+    raise ValueError("DATABASE_URL must use MySQL (mysql+pymysql://...)")
 
 config.set_main_option("sqlalchemy.url", database_url)
 
-# Logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Metadata for autogenerate
 target_metadata = Base.metadata
 
 

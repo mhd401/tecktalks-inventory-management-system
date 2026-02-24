@@ -28,4 +28,4 @@ class ProductUpdate(BaseModel):
 class ProductQuantityAdjust(BaseModel):
     delta: int
     reason: str | None = None
-    pos_id: int | None = None       
+    pos_id: int     

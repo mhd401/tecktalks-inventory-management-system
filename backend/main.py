@@ -1,12 +1,12 @@
 import os
-
+from models import Inventory, Stock, Product, POS, POSSession, User
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from routers.auth import router as auth_router
 from database import Base, engine
 
 # Import models so SQLAlchemy knows them before create_all
-from models import Inventory, Stock, Product, POS, POSSession  # noqa: F401
+
 
 # Routers
 from routers.inventory import router as inventory_router
@@ -38,6 +38,7 @@ app.include_router(stock_router)
 app.include_router(pos_session_router)
 app.include_router(product.router)
 app.include_router(pos.router)
+app.include_router(auth_router)
 
 @app.get("/")
 def root():

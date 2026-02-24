@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
-
+from core.auth_deps import require_admin
+from models.user import User
 from database import get_db
 from models.inventory import Inventory
 from models.stock import Stock
@@ -9,7 +10,11 @@ from schemas.stock import StockCreate, StockRead, StockUpdate
 router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
 @router.post("/", response_model=StockRead, status_code=status.HTTP_201_CREATED)
-def create_stock(payload: StockCreate, db: Session = Depends(get_db)):
+def create_stock(
+    payload: StockCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
     inventory = db.query(Inventory).filter(Inventory.id == payload.inventory_id).first()
     if not inventory:
         raise HTTPException(status_code=404, detail="Inventory not found")

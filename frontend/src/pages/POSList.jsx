@@ -5,8 +5,13 @@ import { posApi } from "../api/posApi";
 import { productApi } from "../api/productApi";
 import DarkPicker from "../components/DarkPicker";
 import EditModal from "../components/EditModal";
+import { useAuth } from "../context/AuthContext";
 
+import PosImageLookupPanel from "../components/PosImageLookupPanel";
 export default function POSList() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [inventories, setInventories] = useState([]);
   const [stocks, setStocks] = useState([]);
   const [selectedInventoryId, setSelectedInventoryId] = useState("");
@@ -67,12 +72,10 @@ export default function POSList() {
 
     const results = await Promise.all(
       safePOS.map(async (pos) => {
-        // Sessions: prefer listSessions (history). If not implemented, fallback to getSession.
         const sessions = await (posApi.listSessions
           ? posApi.listSessions(pos.id).catch(() => [])
           : Promise.resolve([]));
 
-        // If sessions list is empty and getSession exists, try it to show status
         let sessionsFinal = Array.isArray(sessions) ? sessions : [];
         if (sessionsFinal.length === 0 && posApi.getSession) {
           try {
@@ -121,7 +124,6 @@ export default function POSList() {
     fullReload();
   }, []);
 
-  // When inventory changes -> reload its stocks
   useEffect(() => {
     if (!selectedInventoryId) return;
 
@@ -172,6 +174,12 @@ export default function POSList() {
 
   const handleCreatePOS = async (e) => {
     e.preventDefault();
+
+    if (!isAdmin) {
+      setError("Only admins can create POS terminals.");
+      return;
+    }
+
     if (!selectedStockId) return setError("Please select a stock");
     if (!posName.trim()) return setError("POS name is required");
 
@@ -201,7 +209,6 @@ export default function POSList() {
 
     try {
       await posApi.openSession(posId);
-      // refresh sessions/products for that POS
       const pos = posList.find((p) => p.id === posId);
       if (pos) await refreshPosCardData(pos);
       setSuccess("POS session opened successfully");
@@ -229,7 +236,6 @@ export default function POSList() {
     }
   };
 
-  // Optional: only if backend supports adjustQuantity endpoint
   const handleAdjustQuantity = async (pos, product, delta) => {
     if (!productApi.adjustQuantity) {
       setError("Adjust quantity endpoint not available yet");
@@ -259,6 +265,11 @@ export default function POSList() {
   };
 
   const handleEditPOS = (pos) => {
+    if (!isAdmin) {
+      setError("Only admins can edit POS terminals.");
+      return;
+    }
+
     setEditingPos(pos);
     setEditForm({
       name: pos.name || "",
@@ -271,14 +282,21 @@ export default function POSList() {
 
   const handleSaveEditPOS = async (e) => {
     e.preventDefault();
+
+    if (!isAdmin) {
+      setError("Only admins can edit POS terminals.");
+      return;
+    }
+
     if (!editingPos) return;
 
     const trimmedName = (editForm.name || "").trim();
     const stockIdNum = Number(editForm.stock_id);
 
     if (!trimmedName) return setError("POS name is required");
-    if (!Number.isInteger(stockIdNum) || stockIdNum <= 0)
+    if (!Number.isInteger(stockIdNum) || stockIdNum <= 0) {
       return setError("Stock ID must be a valid positive integer");
+    }
 
     setBusy(editingPos.id, true);
     setSavingEdit(true);
@@ -305,6 +323,11 @@ export default function POSList() {
   };
 
   const handleDeletePOS = async (pos) => {
+    if (!isAdmin) {
+      setError("Only admins can delete POS terminals.");
+      return;
+    }
+
     const ok = window.confirm(`Delete POS "${pos.name}"?`);
     if (!ok) return;
 
@@ -376,6 +399,7 @@ export default function POSList() {
                   value: String(inv.id),
                   label: `#${inv.id} - ${inv.name}`,
                 }))}
+                disabled={!isAdmin}
               />
 
               <DarkPicker
@@ -386,7 +410,7 @@ export default function POSList() {
                   value: String(s.id),
                   label: `#${s.id} - ${s.name}`,
                 }))}
-                disabled={!selectedInventoryId}
+                disabled={!isAdmin || !selectedInventoryId}
               />
 
               <input
@@ -394,15 +418,22 @@ export default function POSList() {
                 placeholder="POS name"
                 value={posName}
                 onChange={(e) => setPosName(e.target.value)}
+                disabled={!isAdmin || submittingPOS}
               />
 
               <button
                 className="btn btnPrimary"
                 type="submit"
-                disabled={submittingPOS}
+                disabled={!isAdmin || submittingPOS}
               >
                 {submittingPOS ? "Creating..." : "Create POS"}
               </button>
+
+              {!isAdmin ? (
+                <p style={{ margin: 0, color: "#ffcf66", fontSize: 12 }}>
+                  Cashier can operate sessions and quantity updates, but cannot create/edit/delete POS terminals.
+                </p>
+              ) : null}
             </div>
           </form>
         </aside>
@@ -450,6 +481,7 @@ export default function POSList() {
               const isBusy = !!actionLoading[pos.id];
 
               return (
+                
                 <div
                   key={pos.id}
                   className="card"
@@ -502,7 +534,7 @@ export default function POSList() {
                         className="btn"
                         type="button"
                         onClick={() => handleEditPOS(pos)}
-                        disabled={isBusy}
+                        disabled={isBusy || !isAdmin}
                       >
                         Edit POS
                       </button>
@@ -510,12 +542,19 @@ export default function POSList() {
                         className="btn btnDanger"
                         type="button"
                         onClick={() => handleDeletePOS(pos)}
-                        disabled={isBusy}
+                        disabled={isBusy || !isAdmin}
                       >
                         Delete POS
                       </button>
                     </div>
                   </div>
+                  <PosImageLookupPanel
+  pos={pos}
+  products={products}
+  isOpen={isOpen}
+  onRefresh={() => refreshPosCardData(pos)}
+  onAdjustQuantity={(product, delta) => handleAdjustQuantity(pos, product, delta)}
+/>
 
                   <div className="card" style={{ padding: 0, overflow: "hidden" }}>
                     <table className="table">

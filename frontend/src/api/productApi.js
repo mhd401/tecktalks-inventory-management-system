@@ -25,4 +25,15 @@ export const productApi = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-};
+
+identifyByImage: async ({ file, pos_id, stock_id }) => {
+  const form = new FormData();
+  form.append("image", file);
+  if (pos_id != null) form.append("pos_id", String(pos_id));
+  if (stock_id != null) form.append("stock_id", String(stock_id));
+
+  return api("/products/identify-by-image", {
+    method: "POST",
+    body: form,
+  });
+}};

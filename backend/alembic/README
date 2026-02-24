@@ -1,1 +1,2 @@
 Generic single-database configuration.
+Done: data persists after restart + `alembic upgrade head` runs cleanly on a fresh machine with MySQL + constraints exist.

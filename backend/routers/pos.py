@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
-
+from core.auth_deps import require_admin
+from models.user import User
 from database import get_db
 from models.stock import Stock
 from models.pos import POS
@@ -9,7 +10,11 @@ from schemas.pos import POSCreate, POSRead, POSUpdate
 router = APIRouter(prefix="/pos", tags=["POS"])
 
 @router.post("/", response_model=POSRead, status_code=status.HTTP_201_CREATED)
-def create_pos(payload: POSCreate, db: Session = Depends(get_db)):
+def create_pos(
+    payload: POSCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
     stock = db.query(Stock).filter(Stock.id == payload.stock_id).first()
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")

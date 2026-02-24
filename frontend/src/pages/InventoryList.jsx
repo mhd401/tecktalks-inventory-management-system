@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { inventoryApi } from "../api/inventoryApi";
 import EditModal from "../components/EditModal";
+import { useAuth } from "../context/AuthContext";
 
 export default function InventoryList() {
   const [inventories, setInventories] = useState([]);
@@ -9,6 +10,8 @@ export default function InventoryList() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   // Edit modal state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -34,13 +37,16 @@ export default function InventoryList() {
   }, []);
 
   const total = inventories.length;
-  const newest = useMemo(
-    () => inventories[inventories.length - 1],
-    [inventories]
-  );
+  const newest = useMemo(() => inventories[inventories.length - 1], [inventories]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!isAdmin) {
+      setError("Only admins can create inventories.");
+      return;
+    }
+
     const trimmedName = name.trim();
 
     if (!trimmedName) {
@@ -184,7 +190,7 @@ export default function InventoryList() {
                           type="button"
                           className="btn"
                           onClick={() => handleEdit(inv)}
-                          disabled={loading}
+                          disabled={loading || !isAdmin}
                         >
                           Edit
                         </button>
@@ -192,7 +198,7 @@ export default function InventoryList() {
                           type="button"
                           className="btn btnDanger"
                           onClick={() => handleDelete(inv)}
-                          disabled={loading}
+                          disabled={loading || !isAdmin}
                         >
                           Delete
                         </button>
@@ -218,6 +224,7 @@ export default function InventoryList() {
                 placeholder="Inventory name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={!isAdmin || submitting}
               />
 
               <input
@@ -225,15 +232,22 @@ export default function InventoryList() {
                 placeholder="User ID (optional)"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
+                disabled={!isAdmin || submitting}
               />
 
               <button
                 className="btn btnPrimary"
                 type="submit"
-                disabled={submitting}
+                disabled={!isAdmin || submitting}
               >
                 {submitting ? "Creating..." : "Create"}
               </button>
+
+              {!isAdmin && (
+                <p style={{ margin: 0, color: "#ffcf66", fontSize: 12 }}>
+                  Cashier role cannot create inventories.
+                </p>
+              )}
 
               <p style={{ margin: 0, color: "rgba(255,255,255,0.65)", fontSize: 12 }}>
                 Data is saved in DB • Edit/Delete supported
