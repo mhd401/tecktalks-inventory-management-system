@@ -1,12 +1,12 @@
 import os
-
+from models import Inventory, Stock, Product, POS, POSSession, User
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from database import Base, engine
 
 # Import models so SQLAlchemy knows them before create_all
-from models import Inventory, Stock, Product, POS, POSSession  # noqa: F401
+
 
 # Routers
 from routers.inventory import router as inventory_router
