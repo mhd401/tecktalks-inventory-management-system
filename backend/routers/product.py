@@ -119,6 +119,7 @@ def adjust_product_quantity(product_id: int, payload: ProductQuantityAdjust, db:
 
     try:
         with db.begin():
+            # Lock product row
             product = (
                 db.query(Product)
                 .filter(Product.id == product_id)
@@ -128,30 +129,32 @@ def adjust_product_quantity(product_id: int, payload: ProductQuantityAdjust, db:
             if not product:
                 raise HTTPException(status_code=404, detail="Product not found")
 
-            if payload.pos_id is not None:
-                pos = (
-                    db.query(POS)
-                    .filter(POS.id == payload.pos_id)
-                    .with_for_update()
-                    .first()
-                )
-                if not pos:
-                    raise HTTPException(status_code=404, detail="POS not found")
+            # Lock POS row (pos_id is now mandatory)
+            pos = (
+                db.query(POS)
+                .filter(POS.id == payload.pos_id)
+                .with_for_update()
+                .first()
+            )
+            if not pos:
+                raise HTTPException(status_code=404, detail="POS not found")
 
-                if pos.stock_id != product.stock_id:
-                    raise HTTPException(status_code=400, detail="Product does not belong to POS stock")
+            # Product must belong to the same stock as the POS
+            if pos.stock_id != product.stock_id:
+                raise HTTPException(status_code=400, detail="Product does not belong to POS stock")
 
-                open_session = (
-                    db.query(POSSession)
-                    .filter(
-                        POSSession.pos_id == payload.pos_id,
-                        POSSession.status == SessionStatus.OPEN,
-                    )
-                    .with_for_update()
-                    .first()
+            # POS must have an OPEN session
+            open_session = (
+                db.query(POSSession)
+                .filter(
+                    POSSession.pos_id == payload.pos_id,
+                    POSSession.status == SessionStatus.OPEN,
                 )
-                if not open_session:
-                    raise HTTPException(status_code=400, detail="Open POS session required")
+                .with_for_update()
+                .first()
+            )
+            if not open_session:
+                raise HTTPException(status_code=403, detail="Open POS session required")
 
             new_qty = int(product.quantity) + int(payload.delta)
             if new_qty < 0:
@@ -168,7 +171,6 @@ def adjust_product_quantity(product_id: int, payload: ProductQuantityAdjust, db:
         raise
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Quantity update failed due to DB constraint")
-
 
 @router.delete("/products/{product_id}", status_code=204)
 def delete_product(product_id: int, db: Session = Depends(get_db)):
