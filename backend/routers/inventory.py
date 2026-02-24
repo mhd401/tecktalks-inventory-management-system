@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
-
+from core.auth_deps import require_admin
+from models.user import User
 from database import get_db
 from models.inventory import Inventory
 from schemas.inventory import InventoryCreate, InventoryRead, InventoryUpdate
@@ -8,7 +9,11 @@ from schemas.inventory import InventoryCreate, InventoryRead, InventoryUpdate
 router = APIRouter(prefix="/inventories", tags=["Inventories"])
 
 @router.post("/", response_model=InventoryRead, status_code=status.HTTP_201_CREATED)
-def create_inventory(payload: InventoryCreate, db: Session = Depends(get_db)):
+def create_inventory(
+    payload: InventoryCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+):
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Inventory name cannot be empty")
