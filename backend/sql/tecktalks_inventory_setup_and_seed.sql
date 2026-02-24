@@ -1,12 +1,12 @@
-USE tecktalks_inventory_clean;
+USE tecktalks_inventory;
 
 START TRANSACTION;
 
 -- users (Epic A)
 INSERT INTO users (id, email, role, hashed_password) VALUES
-(1, 'admin@tecktalks.local', 'admin', 'temp_admin_hash'),
-(2, 'cashier1@tecktalks.local', 'cashier', 'temp_cashier_hash'),
-(3, 'cashier2@tecktalks.local', 'cashier', 'temp_cashier_hash');
+(1, 'admin@tecktalks.local', 'admin', '$pbkdf2-sha256$29000$hjCmtBaitBZCSEkJQSjlfA$IMTLGVpINgSVGPtPoTy4QYk2aZKZT/b.Kc.2vtQZSIE'),
+(2, 'cashier1@tecktalks.local', 'cashier', '$pbkdf2-sha256$29000$sfae837PGYPwHqN07t37Pw$w0AFy1oZPxpgOpk7KPpEH/eDp9/roHlc4j9zFvXWu9k'),
+(3, 'cashier2@tecktalks.local', 'cashier', '$pbkdf2-sha256$29000$sfae837PGYPwHqN07t37Pw$w0AFy1oZPxpgOpk7KPpEH/eDp9/roHlc4j9zFvXWu9k');
 
 -- inventories
 INSERT INTO inventories (id, name) VALUES

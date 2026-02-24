@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from passlib.exc import UnknownHashError
 
 load_dotenv()
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
@@ -18,7 +19,10 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except UnknownHashError:
+        return False
 
 
 def create_access_token(user_id: int, email: str, role: str, expires_minutes: int | None = None) -> str:

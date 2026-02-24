@@ -26,7 +26,7 @@ if not database_url:
 if not database_url.lower().startswith("mysql+"):
     raise ValueError("DATABASE_URL must use MySQL (mysql+pymysql://...)")
 
-config.set_main_option("sqlalchemy.url", database_url)
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
