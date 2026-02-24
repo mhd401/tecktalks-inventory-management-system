@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { inventoryApi } from "../api/inventoryApi";
 import { stockApi } from "../api/stockApi";
 import EditModal from "../components/EditModal";
+import { useAuth } from "../context/AuthContext";
 
 const ui = {
   pickerWrap: {
@@ -76,6 +77,9 @@ function InventoryPicker({ inventories, selectedInventoryId, onSelect }) {
 }
 
 export default function StockList() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [inventories, setInventories] = useState([]);
   const [selectedInventoryId, setSelectedInventoryId] = useState("");
   const [stocks, setStocks] = useState([]);
@@ -157,6 +161,11 @@ export default function StockList() {
   const handleCreate = async (e) => {
     e.preventDefault();
 
+    if (!isAdmin) {
+      setError("Only admins can create stocks.");
+      return;
+    }
+
     if (!selectedInventoryId) {
       setError("Please select an inventory");
       return;
@@ -192,6 +201,11 @@ export default function StockList() {
 
   // Open edit modal
   const handleEdit = (stock) => {
+    if (!isAdmin) {
+      setError("Only admins can edit stocks.");
+      return;
+    }
+
     setEditingStock(stock);
     setEditForm({
       name: stock.name || "",
@@ -205,6 +219,12 @@ export default function StockList() {
   // Save edit modal
   const handleSaveEdit = async (e) => {
     e.preventDefault();
+
+    if (!isAdmin) {
+      setError("Only admins can edit stocks.");
+      return;
+    }
+
     if (!editingStock) return;
 
     const trimmed = (editForm.name || "").trim();
@@ -235,6 +255,11 @@ export default function StockList() {
   };
 
   const handleDelete = async (stock) => {
+    if (!isAdmin) {
+      setError("Only admins can delete stocks.");
+      return;
+    }
+
     const ok = window.confirm(`Delete stock "${stock.name}"?`);
     if (!ok) return;
 
@@ -280,6 +305,12 @@ export default function StockList() {
             onSelect={setSelectedInventoryId}
           />
 
+          {!isAdmin && (
+            <p style={{ marginTop: 0, color: "#ffcf66", fontSize: 12 }}>
+              Cashier role is read-only for stock management actions.
+            </p>
+          )}
+
           {error && <p style={{ color: "#ff8b8b", fontSize: 12 }}>{error}</p>}
 
           <table className="table">
@@ -314,6 +345,7 @@ export default function StockList() {
                           type="button"
                           className="btn"
                           onClick={() => handleEdit(s)}
+                          disabled={loading || !isAdmin}
                         >
                           Edit
                         </button>
@@ -321,6 +353,7 @@ export default function StockList() {
                           type="button"
                           className="btn btnDanger"
                           onClick={() => handleDelete(s)}
+                          disabled={loading || !isAdmin}
                         >
                           Delete
                         </button>
@@ -346,6 +379,7 @@ export default function StockList() {
                 placeholder="Stock name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={!isAdmin || submitting}
               />
 
               <input
@@ -353,6 +387,7 @@ export default function StockList() {
                 placeholder="Category (optional)"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
+                disabled={!isAdmin || submitting}
               />
 
               <input
@@ -360,15 +395,22 @@ export default function StockList() {
                 placeholder="Location (optional)"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
+                disabled={!isAdmin || submitting}
               />
 
               <button
                 className="btn btnPrimary"
                 type="submit"
-                disabled={submitting}
+                disabled={!isAdmin || submitting}
               >
                 {submitting ? "Creating..." : "Create Stock"}
               </button>
+
+              {!isAdmin && (
+                <p style={{ margin: 0, color: "#ffcf66", fontSize: 12 }}>
+                  Cashier role cannot create stocks.
+                </p>
+              )}
             </div>
           </form>
         </aside>

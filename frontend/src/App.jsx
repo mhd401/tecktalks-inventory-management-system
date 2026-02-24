@@ -1,5 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider } from "./context/AuthContext";
+
+import LoginPage from "./pages/LoginPage";
 import InventoryList from "./pages/InventoryList";
 import POSList from "./pages/POSList";
 import StockList from "./pages/StockList";
@@ -22,16 +26,22 @@ function NotFound() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Navigate to="/inventories" replace />} />
-          <Route path="/inventories" element={<InventoryList />} />
-          <Route path="/pos" element={<POSList />} />
-          <Route path="*" element={<NotFound />} />
-          <Route path="/stocks" element={<StockList />} />
-          <Route path="/products" element={<ProductList />} />
-        </Route>
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+
+          <Route element={<ProtectedRoute />}>
+            <Route element={<Layout />}>
+              <Route path="/" element={<Navigate to="/inventories" replace />} />
+              <Route path="/inventories" element={<InventoryList />} />
+              <Route path="/stocks" element={<StockList />} />
+              <Route path="/products" element={<ProductList />} />
+              <Route path="/pos" element={<POSList />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Route>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

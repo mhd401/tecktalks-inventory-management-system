@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
@@ -11,6 +11,9 @@ from core.enums import SessionStatus
 from schemas.product import ProductCreate, ProductRead, ProductUpdate, ProductQuantityAdjust
 
 router = APIRouter(tags=["Products"])
+
+def _normalize_name(text: str) -> str:
+    return " ".join((text or "").replace("-", " ").replace("_", " ").strip().lower().split())
 
 
 @router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
@@ -186,3 +189,93 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=409, detail="Failed to delete product due to DB constraint")
 
     return Response(status_code=204)
+
+
+
+@router.post("/identify-by-image")
+def identify_product_by_image(
+    db: Session = Depends(get_db),
+    image: UploadFile = File(...),
+    pos_id: int | None = Form(default=None),
+    stock_id: int | None = Form(default=None),
+):
+    # must have at least one scope
+    if pos_id is None and stock_id is None:
+        raise HTTPException(status_code=400, detail="pos_id or stock_id is required")
+
+    # if pos_id is provided, derive stock_id from POS
+    if pos_id is not None:
+        pos = db.query(POS).filter(POS.id == pos_id).first()
+        if not pos:
+            raise HTTPException(status_code=404, detail="POS not found")
+        target_stock_id = pos.stock_id
+    else:
+        target_stock_id = stock_id
+
+    # basic file validation
+    if not image.filename:
+        raise HTTPException(status_code=400, detail="Image filename is missing")
+
+    # filename fallback matching (stub logic)
+    # example: "coca-cola.jpg" -> "coca cola"
+    filename_no_ext = image.filename.rsplit(".", 1)[0]
+    needle = _normalize_name(filename_no_ext)
+
+    # query products in same stock
+    products = (
+        db.query(Product)
+        .filter(Product.stock_id == target_stock_id)
+        .all()
+    )
+
+    # exact normalized match first
+    for p in products:
+        if _normalize_name(p.name) == needle:
+            return {
+                "found": True,
+                "match_type": "exact_filename",
+                "product": {
+                    "id": p.id,
+                    "name": p.name,
+                    "stock_id": p.stock_id,
+                    "quantity": p.quantity,
+                    # include if your model has price:
+                    # "price": float(p.price) if p.price is not None else None,
+                },
+                "suggested": None,
+            }
+
+    # contains match second
+    for p in products:
+        pname = _normalize_name(p.name)
+        if needle in pname or pname in needle:
+            return {
+                "found": True,
+                "match_type": "partial_filename",
+                "product": {
+                    "id": p.id,
+                    "name": p.name,
+                    "stock_id": p.stock_id,
+                    "quantity": p.quantity,
+                },
+                "suggested": None,
+            }
+
+    # not found -> suggest data for create form
+    # (simple placeholder pricing logic; replace later with ML/AI pricing)
+    suggested_price = 1.0
+    if "cola" in needle or "pepsi" in needle:
+        suggested_price = 1.5
+    elif "water" in needle:
+        suggested_price = 0.5
+
+    return {
+        "found": False,
+        "match_type": None,
+        "product": None,
+        "suggested": {
+            "name": filename_no_ext.replace("-", " ").replace("_", " ").strip(),
+            "suggested_price": suggested_price,
+            "confidence": 0.2,
+        },
+    }
