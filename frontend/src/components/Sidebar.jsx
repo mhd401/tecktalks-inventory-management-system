@@ -10,7 +10,7 @@ export default function Sidebar() {
         <div className="brandLogo">TT</div>
         <div className="brandTitle">
           <strong>TechTalks IMS</strong>
-          <span>Frontend MVP (mock)</span>
+          <span>FastAPI + MySQL (live)</span>
         </div>
       </div>
 
@@ -18,6 +18,16 @@ export default function Sidebar() {
         <NavLink to="/inventories" className={itemClass}>
           <span className="navIcon">📦</span>
           Inventories
+        </NavLink>
+
+        <NavLink to="/stocks" className={itemClass}>
+          <span className="navIcon">🏬</span>
+          Stocks
+        </NavLink>
+
+        <NavLink to="/products" className={itemClass}>
+          <span className="navIcon">🛒</span>
+          Products
         </NavLink>
 
         <NavLink to="/pos" className={itemClass}>
@@ -29,11 +39,11 @@ export default function Sidebar() {
       <div style={{ marginTop: 18 }} className="card">
         <div className="cardHeader">
           <h2>Status</h2>
-          <span>Mock only</span>
+          <span>Live</span>
         </div>
         <div className="badge">
           <span className="dot dotGreen" />
-          UI ready for backend later
+          Backend + DB connected
         </div>
       </div>
     </aside>

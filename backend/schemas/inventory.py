@@ -1,6 +1,15 @@
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict
 
-class Inventory(BaseModel):
+class InventoryCreate(BaseModel):
+    name: str
+
+class InventoryRead(BaseModel):
     id: int
     name: str
-    user_id: int   # owner
+    created_at: datetime | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class InventoryUpdate(BaseModel):
+    name: str

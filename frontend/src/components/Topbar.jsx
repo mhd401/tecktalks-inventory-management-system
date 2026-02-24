@@ -2,6 +2,8 @@ import { useLocation } from "react-router-dom";
 
 function getTitle(pathname) {
   if (pathname.startsWith("/inventories")) return "Inventories";
+  if (pathname.startsWith("/stocks")) return "Stocks";
+  if (pathname.startsWith("/products")) return "Products";
   if (pathname.startsWith("/pos")) return "POS";
   return "Dashboard";
 }
@@ -14,7 +16,7 @@ export default function Topbar() {
     <div className="topbar">
       <div className="topbarTitle">
         <h1>{title}</h1>
-        <p>Mock data UI • no backend calls</p>
+        <p>Live data UI • backend connected</p>
       </div>
 
       <div className="pillRow">

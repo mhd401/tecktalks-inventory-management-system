@@ -1,52 +1,127 @@
 import { useEffect, useMemo, useState } from "react";
-import { getInventories, createInventory } from "../api/inventories";
+import { inventoryApi } from "../api/inventoryApi";
+import EditModal from "../components/EditModal";
 
 export default function InventoryList() {
   const [inventories, setInventories] = useState([]);
   const [name, setName] = useState("");
-  const [userId, setUserId] = useState(1); // MVP default owner
+  const [userId, setUserId] = useState(""); // optional (depends on backend)
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  async function loadInventories() {
+  // Edit modal state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingInventory, setEditingInventory] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const loadInventories = async () => {
+    setLoading(true);
+    setError("");
     try {
-      const data = await getInventories();
-      setInventories(data);
+      const data = await inventoryApi.list();
+      setInventories(Array.isArray(data) ? data : []);
     } catch (err) {
-      console.error("Failed to load inventories:", err);
+      setError(err?.message || "Failed to load inventories");
+    } finally {
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     loadInventories();
   }, []);
 
+  const total = inventories.length;
+  const newest = useMemo(
+    () => inventories[inventories.length - 1],
+    [inventories]
+  );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const trimmedName = name.trim();
 
-    const payload = {
-      id: Date.now(),          // simple unique id for in-memory MVP
-      name: name.trim(),
-      user_id: Number(userId), // required by schema
-    };
+    if (!trimmedName) {
+      setError("Inventory name cannot be empty");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
 
     try {
-      await createInventory(payload);
+      const payload = { name: trimmedName };
+
+      // send user_id only if provided (avoid breaking backend if it doesn't accept it)
+      if (String(userId).trim() !== "") {
+        payload.user_id = Number(userId);
+      }
+
+      await inventoryApi.create(payload);
       setName("");
+      setUserId("");
       await loadInventories();
     } catch (err) {
-      console.error("Failed to create inventory:", err);
-      alert("Create failed. Check console (likely missing fields / CORS).");
+      setError(err?.message || "Failed to create inventory");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const total = inventories.length;
-  const newest = useMemo(() => inventories[inventories.length - 1], [inventories]);
+  // Open Edit Modal
+  const handleEdit = (inv) => {
+    setEditingInventory(inv);
+    setEditForm({ name: inv?.name || "" });
+    setIsEditOpen(true);
+    setError("");
+  };
+
+  // Save Edit Modal
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editingInventory) return;
+
+    const trimmed = (editForm.name || "").trim();
+    if (!trimmed) {
+      setError("Inventory name cannot be empty");
+      return;
+    }
+
+    setSavingEdit(true);
+    setError("");
+
+    try {
+      await inventoryApi.update(editingInventory.id, { name: trimmed });
+      setIsEditOpen(false);
+      setEditingInventory(null);
+      await loadInventories();
+    } catch (err) {
+      setError(err?.message || "Failed to update inventory");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDelete = async (inv) => {
+    const ok = window.confirm(`Delete inventory "${inv.name}"?`);
+    if (!ok) return;
+
+    try {
+      setError("");
+      await inventoryApi.remove(inv.id);
+      await loadInventories();
+    } catch (err) {
+      setError(err?.message || "Failed to delete inventory");
+    }
+  };
 
   return (
     <>
       <div className="kpiRow">
         <div className="kpi">
-          <strong>{total}</strong>
+          <strong>{loading ? "..." : total}</strong>
           <span>Total inventories</span>
         </div>
         <div className="kpi">
@@ -54,8 +129,8 @@ export default function InventoryList() {
           <span>Last created ID</span>
         </div>
         <div className="kpi">
-          <strong>Connected</strong>
-          <span>FastAPI (in-memory)</span>
+          <strong>{loading ? "..." : "Live"}</strong>
+          <span>Backend connected</span>
         </div>
       </div>
 
@@ -63,8 +138,14 @@ export default function InventoryList() {
         <section className="card">
           <div className="cardHeader">
             <h2>Inventory List</h2>
-            <span>Backend data</span>
+            <span>DB / FastAPI</span>
           </div>
+
+          {error && (
+            <p style={{ marginBottom: 10, color: "#ff8b8b", fontSize: 12 }}>
+              {error}
+            </p>
+          )}
 
           <table className="table">
             <thead>
@@ -73,28 +154,52 @@ export default function InventoryList() {
                 <th>Name</th>
                 <th style={{ width: 140 }}>Owner</th>
                 <th style={{ width: 160 }}>Status</th>
+                <th style={{ width: 220 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {inventories.map((inv) => (
-                <tr key={inv.id}>
-                  <td>#{inv.id}</td>
-                  <td>{inv.name}</td>
-                  <td>{inv.user_id}</td>
-                  <td>
-                    <span className="badge">
-                      <span className="dot dotGreen" />
-                      Active
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {inventories.length === 0 && (
+              {loading ? (
                 <tr>
-                  <td colSpan={4} style={{ opacity: 0.7 }}>
-                    No inventories yet.
-                  </td>
+                  <td colSpan={5}>Loading...</td>
                 </tr>
+              ) : inventories.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>No inventories yet.</td>
+                </tr>
+              ) : (
+                inventories.map((inv) => (
+                  <tr key={inv.id}>
+                    <td>#{inv.id}</td>
+                    <td>{inv.name}</td>
+                    <td>{inv.user_id ?? "-"}</td>
+                    <td>
+                      <span className="badge">
+                        <span className="dot dotGreen" />
+                        Active
+                      </span>
+                    </td>
+                    <td>
+                      <div className="btnRow">
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => handleEdit(inv)}
+                          disabled={loading}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btnDanger"
+                          onClick={() => handleDelete(inv)}
+                          disabled={loading}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
@@ -117,22 +222,41 @@ export default function InventoryList() {
 
               <input
                 className="input"
-                placeholder="User ID (owner)"
+                placeholder="User ID (optional)"
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
               />
 
-              <button className="btn btnPrimary" type="submit">
-                Create
+              <button
+                className="btn btnPrimary"
+                type="submit"
+                disabled={submitting}
+              >
+                {submitting ? "Creating..." : "Create"}
               </button>
 
               <p style={{ margin: 0, color: "rgba(255,255,255,0.65)", fontSize: 12 }}>
-                Requires: id, name, user_id (in-memory backend)
+                Data is saved in DB • Edit/Delete supported
               </p>
             </div>
           </form>
         </aside>
       </div>
+
+      <EditModal
+        open={isEditOpen}
+        title="Edit Inventory"
+        form={editForm}
+        setForm={setEditForm}
+        saving={savingEdit}
+        onClose={() => {
+          if (savingEdit) return;
+          setIsEditOpen(false);
+          setEditingInventory(null);
+        }}
+        onSave={handleSaveEdit}
+        fields={[{ name: "name", label: "Inventory name", required: true }]}
+      />
     </>
   );
 }
