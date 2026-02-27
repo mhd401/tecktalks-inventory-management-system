@@ -1,0 +1,359 @@
+.posShell{
+  display:flex;
+  flex-direction:column;
+  height: calc(100vh - 24px);
+  gap: 10px;
+}
+
+.posTopBar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.posBrand{
+  display:flex;
+  align-items:baseline;
+  gap: 10px;
+  min-width: 320px;
+}
+
+.posBadge{
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.18);
+}
+
+.posTitle{
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.posMeta{
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.posSearch{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+}
+
+.posSearchInput{
+  width: 320px;
+  max-width: 42vw;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: white;
+}
+
+.posIconBtn{
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: white;
+  cursor:pointer;
+}
+.posIconBtn:disabled{
+  opacity: 0.55;
+  cursor:not-allowed;
+}
+
+.posBody{
+  flex:1;
+  display:flex;
+  gap: 10px;
+  min-height: 0;
+}
+
+.posLeft{
+  width: 42%;
+  min-width: 380px;
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.posOrderPanel{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  min-height: 0;
+}
+
+.posOrderHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap: 10px;
+}
+
+.posTotal{
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.posPayBtn{
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: white;
+  cursor:pointer;
+  font-weight:700;
+}
+.posPayBtn:disabled{
+  opacity:0.6;
+  cursor:not-allowed;
+}
+
+.posLines{
+  flex:1;
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.posLine{
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.20);
+  border: 1px solid rgba(255,255,255,0.10);
+  cursor:pointer;
+}
+.posLine.active{
+  outline: 2px solid rgba(255,255,255,0.25);
+}
+
+.posLineName{
+  font-weight:700;
+  margin-bottom: 6px;
+}
+
+.posLineMeta{
+  display:flex;
+  justify-content:space-between;
+  opacity: 0.85;
+  font-size: 13px;
+}
+
+.posEmpty{
+  opacity: 0.7;
+  padding: 10px;
+}
+
+.posError{
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 60, 60, 0.16);
+  border: 1px solid rgba(255, 60, 60, 0.20);
+}
+
+.posPad{
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.posPadMode{
+  display:flex;
+  gap: 8px;
+  align-items:center;
+  margin-bottom: 10px;
+}
+
+.posModeBtn{
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.20);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: white;
+  cursor:pointer;
+  font-weight:700;
+}
+.posModeBtn.active{
+  background: rgba(255,255,255,0.14);
+}
+
+.posPadDisplay{
+  margin-left:auto;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.20);
+  border: 1px solid rgba(255,255,255,0.10);
+  min-width: 110px;
+  text-align:right;
+  font-weight:800;
+}
+
+.posPadGrid{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.posPadBtn{
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.20);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: white;
+  cursor:pointer;
+  font-weight:800;
+}
+.posPadBtn.wide{
+  grid-column: span 3;
+}
+
+.posDrawerSummary{
+  margin-top: 10px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.posRight{
+  flex:1;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  overflow:auto;
+  min-height: 0;
+}
+
+.posGrid{
+  display:grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.posCard{
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(0,0,0,0.18);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: white;
+  text-align:left;
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  gap: 8px;
+  min-height: 110px;
+}
+
+.posCardImg{
+  height: 52px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.08);
+  border: 1px dashed rgba(255,255,255,0.12);
+}
+
+.posCardName{
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.2;
+  min-height: 32px;
+}
+
+.posCardPrice{
+  opacity: 0.9;
+  font-weight: 800;
+  margin-top: auto;
+}
+
+.posMenu{
+  position: fixed;
+  top: 70px;
+  right: 18px;
+  width: 240px;
+  border-radius: 14px;
+  background: rgba(15,15,15,0.92);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.4);
+  padding: 8px;
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+  z-index: 50;
+}
+.posMenuItem{
+  padding: 10px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: white;
+  cursor: pointer;
+  text-decoration:none;
+}
+.posMenuItem.linkLike{
+  display:block;
+}
+.posModalBackdrop{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index: 60;
+  padding: 16px;
+}
+
+.posModal{
+  width: 520px;
+  max-width: 94vw;
+  border-radius: 16px;
+  background: rgba(20,20,20,0.96);
+  border: 1px solid rgba(255,255,255,0.14);
+  padding: 14px;
+}
+.posForm{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.posForm label{
+  display:grid;
+  gap: 6px;
+  font-size: 13px;
+  opacity: 0.95;
+}
+.posForm input{
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: white;
+}
+.posModalActions{
+  display:flex;
+  justify-content:flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+.posCloseSummary{
+  margin-top: 6px;
+  font-size: 13px;
+  opacity: 0.95;
+}

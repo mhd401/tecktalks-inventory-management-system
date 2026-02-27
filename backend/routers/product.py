@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from database import get_db
+from core.auth_deps import get_current_user
+from models.user import User
 from models.stock import Stock
 from models.product import Product
 from models.pos import POS
@@ -17,7 +19,7 @@ def _normalize_name(text: str) -> str:
 
 
 @router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
-def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
+def create_product(payload: ProductCreate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     stock = db.query(Stock).filter(Stock.id == payload.stock_id).first()
     if not stock:
         raise HTTPException(status_code=404, detail="Stock not found")
@@ -60,7 +62,7 @@ def create_product(payload: ProductCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/stocks/{stock_id}/products", response_model=list[ProductRead])
-def list_products_by_stock(stock_id: int, db: Session = Depends(get_db)):
+def list_products_by_stock(stock_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return (
         db.query(Product)
         .filter(Product.stock_id == stock_id)
@@ -70,7 +72,7 @@ def list_products_by_stock(stock_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/products/{product_id}", response_model=ProductRead)
-def update_product(product_id: int, payload: ProductUpdate, db: Session = Depends(get_db)):
+def update_product(product_id: int, payload: ProductUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -114,7 +116,7 @@ def update_product(product_id: int, payload: ProductUpdate, db: Session = Depend
 
 
 @router.post("/products/{product_id}/adjust-quantity", response_model=ProductRead)
-def adjust_product_quantity(product_id: int, payload: ProductQuantityAdjust, db: Session = Depends(get_db)):
+def adjust_product_quantity(product_id: int, payload: ProductQuantityAdjust, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if payload.delta == 0:
         raise HTTPException(status_code=400, detail="Delta cannot be zero")
 
@@ -176,7 +178,7 @@ def adjust_product_quantity(product_id: int, payload: ProductQuantityAdjust, db:
         raise HTTPException(status_code=409, detail="Quantity update failed due to DB constraint")
 
 @router.delete("/products/{product_id}", status_code=204)
-def delete_product(product_id: int, db: Session = Depends(get_db)):
+def delete_product(product_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -194,6 +196,7 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
 
 @router.post("/identify-by-image")
 def identify_product_by_image(
+    _: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     image: UploadFile = File(...),
     pos_id: int | None = Form(default=None),

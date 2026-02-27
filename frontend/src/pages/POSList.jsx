@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { inventoryApi } from "../api/inventoryApi";
 import { stockApi } from "../api/stockApi";
 import { posApi } from "../api/posApi";
@@ -11,6 +12,7 @@ import PosImageLookupPanel from "../components/PosImageLookupPanel";
 export default function POSList() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const navigate = useNavigate();
 
   const [inventories, setInventories] = useState([]);
   const [stocks, setStocks] = useState([]);
@@ -203,20 +205,8 @@ export default function POSList() {
   };
 
   const handleOpenSession = async (posId) => {
-    setBusy(posId, true);
-    setError("");
-    setSuccess("");
-
-    try {
-      await posApi.openSession(posId);
-      const pos = posList.find((p) => p.id === posId);
-      if (pos) await refreshPosCardData(pos);
-      setSuccess("POS session opened successfully");
-    } catch (err) {
-      setError(err?.message || "Failed to open session");
-    } finally {
-      setBusy(posId, false);
-    }
+    // New flow: go to the cash reference page first
+    navigate(`/pos/${posId}/session-reference`);
   };
 
   const handleCloseSession = async (posId) => {
@@ -225,7 +215,7 @@ export default function POSList() {
     setSuccess("");
 
     try {
-      await posApi.closeSession(posId);
+      await posApi.closeSessionLegacy(posId);
       const pos = posList.find((p) => p.id === posId);
       if (pos) await refreshPosCardData(pos);
       setSuccess("POS session closed successfully");

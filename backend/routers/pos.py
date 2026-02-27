@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
-from core.auth_deps import require_admin
+from core.auth_deps import require_admin, get_current_user
 from models.user import User
 from database import get_db
 from models.stock import Stock
@@ -30,15 +30,24 @@ def create_pos(
     return pos
 
 @router.get("/", response_model=list[POSRead])
-def list_pos(db: Session = Depends(get_db)):
+def list_pos(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return db.query(POS).order_by(POS.id.asc()).all()
 
 @router.get("/stocks/{stock_id}", response_model=list[POSRead])
-def list_pos_by_stock(stock_id: int, db: Session = Depends(get_db)):
+def list_pos_by_stock(stock_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return db.query(POS).filter(POS.stock_id == stock_id).order_by(POS.id.asc()).all()
 
+
+
+@router.get("/{pos_id}", response_model=POSRead)
+def get_pos(pos_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    pos = db.query(POS).filter(POS.id == pos_id).first()
+    if not pos:
+        raise HTTPException(status_code=404, detail="POS not found")
+    return pos
+
 @router.put("/{pos_id}", response_model=POSRead)
-def update_pos(pos_id: int, payload: POSUpdate, db: Session = Depends(get_db)):
+def update_pos(pos_id: int, payload: POSUpdate, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     pos = db.query(POS).filter(POS.id == pos_id).first()
     if not pos:
         raise HTTPException(status_code=404, detail="POS not found")
@@ -58,7 +67,7 @@ def update_pos(pos_id: int, payload: POSUpdate, db: Session = Depends(get_db)):
     return pos
 
 @router.delete("/{pos_id}", status_code=204)
-def delete_pos(pos_id: int, db: Session = Depends(get_db)):
+def delete_pos(pos_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     pos = db.query(POS).filter(POS.id == pos_id).first()
     if not pos:
         raise HTTPException(status_code=404, detail="POS not found")

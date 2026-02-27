@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
 from database import get_db
+from core.auth_deps import get_current_user
+from models.user import User
 from core.enums import SessionStatus
 from models.pos import POS
 from models.session import POSSession
@@ -15,7 +17,7 @@ router = APIRouter(prefix="/pos", tags=["POS Sessions"])
 
 
 @router.post("/{pos_id}/session/open", response_model=POSSessionRead)
-def open_pos_session(pos_id: int, db: Session = Depends(get_db)):
+def open_pos_session(pos_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     created_session_id: int | None = None
 
     try:
@@ -59,7 +61,7 @@ def open_pos_session(pos_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{pos_id}/session/close", response_model=POSSessionRead)
-def close_pos_session(pos_id: int, db: Session = Depends(get_db)):
+def close_pos_session(pos_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     closed_session_id: int | None = None
 
     try:
@@ -99,7 +101,7 @@ def close_pos_session(pos_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{pos_id}/session", response_model=POSSessionRead)
-def get_latest_session(pos_id: int, db: Session = Depends(get_db)):
+def get_latest_session(pos_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     pos = db.query(POS).filter(POS.id == pos_id).first()
     if not pos:
         raise HTTPException(status_code=404, detail="POS not found")
@@ -117,7 +119,7 @@ def get_latest_session(pos_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{pos_id}/sessions", response_model=List[POSSessionRead])
-def list_pos_sessions(pos_id: int, db: Session = Depends(get_db)):
+def list_pos_sessions(pos_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return (
         db.query(POSSession)
         .filter(POSSession.pos_id == pos_id)

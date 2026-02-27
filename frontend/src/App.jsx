@@ -6,6 +6,8 @@ import { AuthProvider } from "./context/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import InventoryList from "./pages/InventoryList";
 import POSList from "./pages/POSList";
+import POSScreen from "./pages/POSScreen";
+import POSSessionReference from "./pages/POSSessionReference";
 import StockList from "./pages/StockList";
 import ProductList from "./pages/ProductList";
 
@@ -36,7 +38,9 @@ export default function App() {
               <Route path="/inventories" element={<InventoryList />} />
               <Route path="/stocks" element={<StockList />} />
               <Route path="/products" element={<ProductList />} />
-              <Route path="/pos" element={<POSList />} />
+              <Route exact path="/pos" component={POSList} />
+              <Route path="/pos/:posId/session-reference" element={<POSSessionReference />} />
+              <Route path="/pos/:posId" component={POSScreen} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Route>

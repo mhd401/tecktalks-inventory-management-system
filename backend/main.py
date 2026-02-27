@@ -1,5 +1,5 @@
 import os
-from models import Inventory, Stock, Product, POS, POSSession, User
+from models import Inventory, Stock, Product, POS, POSSession, CashMovement, POSOrder, POSOrderLine, User
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.auth import router as auth_router
@@ -12,6 +12,7 @@ from database import Base, engine
 from routers.inventory import router as inventory_router
 from routers.stock import router as stock_router
 from routers.pos_session import router as pos_session_router
+from routers.pos_workflow import router as pos_workflow_router
 from routers import product, pos
 
 app = FastAPI(title="TechTalks Inventory API")
@@ -36,6 +37,7 @@ if os.getenv("AUTO_CREATE_TABLES", "false").lower() == "true":
 app.include_router(inventory_router)
 app.include_router(stock_router)
 app.include_router(pos_session_router)
+app.include_router(pos_workflow_router)
 app.include_router(product.router)
 app.include_router(pos.router)
 app.include_router(auth_router)

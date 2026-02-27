@@ -3,4 +3,7 @@ from .stock import Stock
 from .product import Product
 from .pos import POS
 from .session import POSSession
+from .cash_movement import CashMovement
+from .order import POSOrder
+from .order_line import POSOrderLine
 from .user import User
