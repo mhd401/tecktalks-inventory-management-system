@@ -1,8 +1,14 @@
-const BASE_URL = "http://127.0.0.1:8000";
+// IMPORTANT: configure via frontend/.env (Vite)
+// Example: VITE_API_URL=http://127.0.0.1:8000
+const BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const TOKEN_KEY = "token";
 
+export function getApiBaseUrl() {
+  return BASE_URL;
+}
 export function getStoredToken() {
-  const raw = localStorage.getItem(TOKEN_KEY);
+  // support both keys (some parts store "access_token")
+  const raw = localStorage.getItem("token") || localStorage.getItem("access_token");
   if (!raw) return null;
 
   // handle old values accidentally saved with quotes
@@ -13,18 +19,16 @@ export function getStoredToken() {
       return raw;
     }
   }
-
   return raw;
 }
-
 export function setStoredToken(token) {
   if (!token) return;
-  localStorage.setItem(TOKEN_KEY, token); // save raw token string
+  localStorage.setItem("token", token);
+  localStorage.setItem("access_token", token); // keep both for compatibility
 }
 
 export function clearStoredToken() {
-  localStorage.removeItem(TOKEN_KEY);
-  // optional cleanup if you previously used another key
+  localStorage.removeItem("token");
   localStorage.removeItem("access_token");
 }
 
@@ -54,7 +58,6 @@ export async function api(path, options = {}) {
   });
 
   if (res.status === 401) {
-    // notify AuthContext to logout
     window.dispatchEvent(new Event("auth:unauthorized"));
   }
 
@@ -64,8 +67,6 @@ export async function api(path, options = {}) {
   }
 
   const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    return res.json();
-  }
+  if (contentType.includes("application/json")) return res.json();
   return res.text();
 }

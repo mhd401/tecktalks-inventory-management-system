@@ -1,10 +1,10 @@
 import { api } from "./client";
 
 export const inventoryApi = {
-  list: () => api("/inventories"),
+  list: () => api("/inventories/"),
 
   create: (payload) =>
-    api("/inventories", {
+    api("/inventories/", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

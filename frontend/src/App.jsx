@@ -33,17 +33,19 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
 
           <Route element={<ProtectedRoute />}>
-            <Route element={<Layout />}>
-              <Route path="/" element={<Navigate to="/inventories" replace />} />
-              <Route path="/inventories" element={<InventoryList />} />
-              <Route path="/stocks" element={<StockList />} />
-              <Route path="/products" element={<ProductList />} />
-              <Route exact path="/pos" component={POSList} />
-              <Route path="/pos/:posId/session-reference" element={<POSSessionReference />} />
-              <Route path="/pos/:posId" component={POSScreen} />
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Route>
+  <Route element={<Layout />}>
+    <Route path="/" element={<Navigate to="/inventories" replace />} />
+    <Route path="/inventories" element={<InventoryList />} />
+    <Route path="/stocks" element={<StockList />} />
+    <Route path="/products" element={<ProductList />} />
+
+   <Route path="/pos" element={<POSList />} />
+<Route path="/pos/:posId/session-reference" element={<POSSessionReference />} />
+<Route path="/pos/:posId" element={<POSScreen />} />
+
+    <Route path="*" element={<NotFound />} />
+  </Route>
+</Route>
         </Routes>
       </AuthProvider>
     </BrowserRouter>

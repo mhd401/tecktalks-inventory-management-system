@@ -8,6 +8,21 @@ function money(v) {
   return n.toFixed(2);
 }
 
+function isSessionOpenFromSummary(summary) {
+  if (!summary) return false;
+
+  const statusRaw =
+    summary?.status ??
+    summary?.session_status ??
+    summary?.session?.status ??
+    summary?.session?.state ??
+    summary?.state ??
+    "";
+
+  const status = String(statusRaw).toUpperCase();
+  return status === "OPEN" || summary?.is_open === true;
+}
+
 export default function POSSessionReference() {
   const { posId } = useParams();
   const navigate = useNavigate();
@@ -17,11 +32,11 @@ export default function POSSessionReference() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const didInit = useRef(false);
-  
 
   useEffect(() => {
     if (didInit.current) return;
     didInit.current = true;
+
     let mounted = true;
     (async () => {
       try {
@@ -29,27 +44,26 @@ export default function POSSessionReference() {
           posApi.expectedOpeningCash(posId),
           posApi.drawerSummary(posId).catch(() => null),
         ]);
+
         if (!mounted) return;
-        setExpected(exp?.expected_opening_cash ?? 0);
-        // if already open, jump to POS screen
-        const isOpen =
-          summary &&
-          (
-            summary.status === "OPEN" ||
-            summary.session_status === "OPEN" ||
-            summary.is_open === true
-          );
-        
+
+        const expectedCash = exp?.expected_opening_cash ?? 0;
+        setExpected(expectedCash);
+
+        // ✅ If already open, go directly to POS screen
+        const isOpen = isSessionOpenFromSummary(summary);
         if (isOpen) {
           navigate(`/pos/${posId}`, { replace: true });
           return;
         }
-        setOpeningCash(String(exp?.expected_opening_cash ?? "0.00"));
+
+        setOpeningCash(String(expectedCash));
       } catch (e) {
         if (!mounted) return;
-        setErr(e?.response?.data?.detail || e.message || "Failed to load opening cash reference.");
+        setErr(e.message || "Failed to load opening cash reference.");
       }
     })();
+
     return () => {
       mounted = false;
     };
@@ -60,15 +74,21 @@ export default function POSSessionReference() {
     return Number.isFinite(n) && n >= 0 && !loading;
   }, [openingCash, loading]);
 
+  const diff = useMemo(() => {
+    const entered = Number(openingCash);
+    const exp = Number(expected ?? 0);
+    if (!Number.isFinite(entered) || !Number.isFinite(exp)) return null;
+    return entered - exp;
+  }, [openingCash, expected]);
+
   async function onConfirm() {
     setErr("");
     setLoading(true);
     try {
-      const res = await posApi.openSessionWithCash(posId, Number(openingCash));
-      // go to POS screen
-      navigate(`/pos/${posId}`, { replace: true, state: { sessionId: res?.id } });
+      await posApi.openSessionWithCash(posId, Number(openingCash));
+      navigate(`/pos/${posId}`, { replace: true });
     } catch (e) {
-      setErr(e?.response?.data?.detail || e.message || "Failed to open session.");
+      setErr(e.message || "Failed to open session.");
     } finally {
       setLoading(false);
     }
@@ -83,12 +103,19 @@ export default function POSSessionReference() {
 
       <div style={{ display: "grid", gap: 12 }}>
         <div style={{ color: "rgba(255,255,255,0.8)" }}>
-          Expected opening cash (from last closing):{" "}
-          <b>${money(expected)}</b>
+          Expected opening cash (from last closing): <b>${money(expected)}</b>
         </div>
 
+        {diff != null && Math.abs(diff) > 0.009 ? (
+          <div style={{ color: "rgba(255,207,102,0.95)", fontSize: 13 }}>
+            Difference (counted - expected): <b>${money(diff)}</b>
+          </div>
+        ) : null}
+
         <label style={{ display: "grid", gap: 6 }}>
-          <span style={{ color: "rgba(255,255,255,0.8)" }}>Count cash in drawer</span>
+          <span style={{ color: "rgba(255,255,255,0.8)" }}>
+            Count cash in drawer
+          </span>
           <input
             value={openingCash}
             onChange={(e) => setOpeningCash(e.target.value)}
@@ -98,9 +125,7 @@ export default function POSSessionReference() {
           />
         </label>
 
-        {err ? (
-          <div className="errorBox">{err}</div>
-        ) : null}
+        {err ? <div className="errorBox">{err}</div> : null}
 
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <button className="button" disabled={!canSubmit} onClick={onConfirm}>
@@ -111,9 +136,16 @@ export default function POSSessionReference() {
           </Link>
         </div>
 
-        <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13, lineHeight: 1.4 }}>
-          This step matches real POS workflow: the cashier must count the drawer before
-          starting the day. We store this as <b>opening_cash</b> in the session.
+        <div
+          style={{
+            color: "rgba(255,255,255,0.55)",
+            fontSize: 13,
+            lineHeight: 1.4,
+          }}
+        >
+          This step matches real POS workflow: the cashier must count the drawer
+          before starting the day. We store this as <b>opening_cash</b> in the
+          session.
         </div>
       </div>
     </div>

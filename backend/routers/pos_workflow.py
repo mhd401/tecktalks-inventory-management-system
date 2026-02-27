@@ -5,6 +5,11 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Optional
 
+import uuid
+from pathlib import Path
+from fastapi import Form
+from schemas.product import ProductRead
+
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, InvalidRequestError
@@ -255,6 +260,88 @@ def list_products_for_pos(
     return query.order_by(Product.id.asc()).all()
 
 
+@router.post("/{pos_id}/products", response_model=ProductRead, status_code=201)
+def create_product_for_pos(
+    pos_id: int,
+    name: str = Form(...),
+    price: float = Form(0.0),
+    cost: float = Form(0.0),
+    sku: str | None = Form(None),
+    quantity: int = Form(0),
+    image: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    # POS must exist
+    pos = db.query(POS).filter(POS.id == pos_id).first()
+    if not pos:
+        raise HTTPException(status_code=404, detail="POS not found")
+
+    # Require open session (matches your workflow)
+    _get_open_session_for_update(db, pos_id)
+
+    clean_name = name.strip()
+    if not clean_name:
+        raise HTTPException(status_code=400, detail="Product name cannot be empty")
+
+    if price < 0 or cost < 0:
+        raise HTTPException(status_code=400, detail="Price/cost cannot be negative")
+    if quantity < 0:
+        raise HTTPException(status_code=400, detail="Quantity cannot be negative")
+
+    clean_sku = sku.strip() if sku and sku.strip() else None
+
+    # SKU must be unique within this POS stock (you already have uq constraint)
+    if clean_sku:
+        dup = (
+            db.query(Product)
+            .filter(Product.stock_id == pos.stock_id, Product.sku == clean_sku)
+            .first()
+        )
+        if dup:
+            raise HTTPException(status_code=400, detail="SKU already exists in this stock")
+
+    image_url = None
+
+    # Save image if provided
+    if image is not None and image.filename:
+        ext = image.filename.rsplit(".", 1)[-1].lower()
+        if ext not in ("png", "jpg", "jpeg", "webp"):
+            raise HTTPException(status_code=400, detail="Unsupported image type")
+
+        filename = f"{uuid.uuid4().hex}.{ext}"
+
+        products_dir = Path(__file__).resolve().parent.parent / "static" / "products"
+        products_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = products_dir / filename
+        with open(file_path, "wb") as f:
+            f.write(image.file.read())
+
+        image_url = f"/static/products/{filename}"
+
+    try:
+        with safe_begin(db):
+            product = Product(
+                stock_id=pos.stock_id,
+                name=clean_name,
+                sku=clean_sku,
+                price=price,
+                cost=cost,
+                quantity=quantity,
+                image_url=image_url,
+            )
+            db.add(product)
+            db.flush()
+            created_id = product.id
+
+        created = db.query(Product).filter(Product.id == created_id).first()
+        return created
+
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="Failed to create product")
+    
+    
 @router.post("/{pos_id}/orders/pay", response_model=OrderRead)
 def pay_order(
     pos_id: int,

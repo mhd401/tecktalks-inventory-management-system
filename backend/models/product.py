@@ -20,6 +20,8 @@ class Product(Base):
     name = Column(String(255), nullable=False)
     sku = Column(String(255), nullable=True)
     price = Column(Numeric(10, 2), nullable=False, server_default="0.00")
+    cost = Column(Numeric(10, 2), nullable=False, server_default="0.00")
+    image_url = Column(String(1024), nullable=True)
     quantity = Column(Integer, nullable=False, server_default="0")
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 

@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.auth import router as auth_router
 from database import Base, engine
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 # Import models so SQLAlchemy knows them before create_all
 
@@ -16,6 +18,10 @@ from routers.pos_workflow import router as pos_workflow_router
 from routers import product, pos
 
 app = FastAPI(title="TechTalks Inventory API")
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # CORS for React (Vite)
 app.add_middleware(

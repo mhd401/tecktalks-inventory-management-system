@@ -1,12 +1,12 @@
 import { api } from "./client";
 
 export const posApi = {
-  list: () => api("/pos"),
+  list: () => api("/pos/"),
   listByStock: (stockId) => api(`/pos/stocks/${stockId}`),
   get: (posId) => api(`/pos/${posId}`),
 
   create: (payload) =>
-    api("/pos", {
+    api("/pos/", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -23,18 +23,17 @@ export const posApi = {
     }),
 
   // Sessions
-  getLatestSession: (posId) => api(`/pos/${posId}/session`),
   listSessions: (posId) => api(`/pos/${posId}/sessions`),
-  openSessionLegacy: (posId) => api(`/pos/${posId}/session/open`, { method: "POST" }),
-  closeSessionLegacy: (posId) => api(`/pos/${posId}/session/close`, { method: "POST" }),
 
   expectedOpeningCash: (posId) => api(`/pos/${posId}/drawer/expected-opening-cash`),
   drawerSummary: (posId) => api(`/pos/${posId}/drawer/summary`),
+
   openSessionWithCash: (posId, opening_cash) =>
     api(`/pos/${posId}/session/open-with-cash`, {
       method: "POST",
       body: JSON.stringify({ opening_cash }),
     }),
+
   closeSessionWithCash: (posId, closing_cash) =>
     api(`/pos/${posId}/session/close-with-cash`, {
       method: "POST",
@@ -51,9 +50,25 @@ export const posApi = {
   listProducts: (posId, q = "") =>
     api(`/pos/${posId}/products${q ? `?q=${encodeURIComponent(q)}` : ""}`),
 
+  createProduct: (posId, { name, price, cost, sku, quantity, imageFile }) => {
+    const form = new FormData();
+    form.append("name", name);
+    form.append("price", String(price ?? 0));
+    if (cost != null && cost !== "") form.append("cost", String(cost));
+    if (sku) form.append("sku", String(sku));
+    form.append("quantity", String(quantity ?? 0));
+    if (imageFile) form.append("image", imageFile);
+
+    return api(`/pos/${posId}/products`, {
+      method: "POST",
+      body: form,
+    });
+  },
+
   searchByImage: (posId, file) => {
     const form = new FormData();
     form.append("image", file);
+
     return api(`/pos/${posId}/products/search-by-image`, {
       method: "POST",
       body: form,

@@ -9,6 +9,7 @@ from schemas.pos import POSCreate, POSRead, POSUpdate
 
 router = APIRouter(prefix="/pos", tags=["POS"])
 
+@router.post("", response_model=POSRead, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=POSRead, status_code=status.HTTP_201_CREATED)
 def create_pos(
     payload: POSCreate,
@@ -29,6 +30,7 @@ def create_pos(
     db.refresh(pos)
     return pos
 
+@router.get("", response_model=list[POSRead], include_in_schema=False)
 @router.get("/", response_model=list[POSRead])
 def list_pos(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return db.query(POS).order_by(POS.id.asc()).all()

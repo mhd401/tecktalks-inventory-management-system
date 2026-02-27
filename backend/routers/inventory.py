@@ -7,7 +7,7 @@ from models.inventory import Inventory
 from schemas.inventory import InventoryCreate, InventoryRead, InventoryUpdate
 
 router = APIRouter(prefix="/inventories", tags=["Inventories"])
-
+@router.post("", response_model=InventoryRead, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=InventoryRead, status_code=status.HTTP_201_CREATED)
 def create_inventory(
     payload: InventoryCreate,
@@ -28,6 +28,7 @@ def create_inventory(
     db.refresh(inventory)
     return inventory
 
+@router.get("", response_model=list[InventoryRead], include_in_schema=False)
 @router.get("/", response_model=list[InventoryRead])
 def list_inventories(db: Session = Depends(get_db)):
     return db.query(Inventory).order_by(Inventory.id.asc()).all()

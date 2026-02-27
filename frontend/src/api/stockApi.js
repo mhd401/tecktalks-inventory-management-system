@@ -4,7 +4,7 @@ export const stockApi = {
   listByInventory: (inventoryId) => api(`/stocks/inventories/${inventoryId}`),
 
   create: (payload) =>
-    api("/stocks", {
+    api("/stocks/", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
